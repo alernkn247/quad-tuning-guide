@@ -150,6 +150,7 @@ body {
 .stage::before { transform: translateY(.875rem) scaleX(.9); opacity: .45; }
 .stage::after { transform: translateY(.4375rem) scaleX(.95); opacity: .75; }
 .card {
+  min-width: 0;
   grid-area: 1 / 1;
   position: relative;
   z-index: 1;
@@ -708,7 +709,7 @@ body.wide .wrap { max-width: 62rem; }
   .bfp-card.now, .bfp-card.flash, .bfp-caret { animation: none; }
 }
 .scn .bf-say { min-height: 3.5em; }
-.scn .bf-cols { grid-template-columns: 1fr; }
+.scn .bf-cols { grid-template-columns: minmax(0, 1fr); }
 .scn .bf-row { grid-template-columns: 7rem 1fr; }
 .scn-flush { padding: 0; }
 .scn-stack { display: grid; }
