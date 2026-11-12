@@ -77,6 +77,30 @@ body {
   font-size: 1.25rem;
   margin: 0 0 1rem;
 }
+.beta {
+  display: flex;
+  align-items: baseline;
+  gap: .625rem;
+  margin: 0 0 1rem;
+  padding: .5rem .75rem;
+  border-radius: .625rem;
+  background: var(--tint);
+  border: 1px solid var(--card-edge);
+  border-left: .25rem solid var(--alert);
+  font-size: .9375rem;
+  line-height: 1.35;
+}
+.beta b {
+  flex: none;
+  padding: 0 .4375rem;
+  border-radius: .375rem;
+  background: var(--signal);
+  color: var(--signal-ink);
+  font-size: .8125rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
 .phases {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -781,6 +805,7 @@ figcaption b { color: var(--ink); font-weight: 600; display: block; }
 </head>
 <body>
 <div class="wrap">
+  <p class="beta" role="note"><b>Beta</b><span>This guide is still being tested and may contain mistakes. Check each change against your own quad, and keep the backup from step 2.</span></p>
   <h1 class="site-title">Quad tuning, one step at a time</h1>
   <p class="sizebar" id="sizebar" hidden><span id="sizeLabel"></span><button type="button" id="changeSize">Change size</button></p>
   <ol class="phases" id="phases"></ol>
