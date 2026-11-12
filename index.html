@@ -638,6 +638,7 @@ body.wide .wrap { max-width: 62rem; }
 .prem .bf-guide { position: static; }
 .prem .bf-say { min-height: 3.5em; }
 .bf-tabs .tgt.now { opacity: 1; outline: 2px solid var(--bf-acc); outline-offset: -2px; }
+.bf-tabs.sub { border-radius: 0; background: var(--bf-bar); color: var(--bf-text); border-bottom: 1px solid var(--bf-line); }
 .bfp-body { padding: .75rem; transition: opacity .3s ease; }
 .bfp-body.dim { opacity: .3; }
 .bfp-search { padding: .25rem; margin: -.25rem -.25rem .375rem; border-radius: .25rem; }
@@ -1010,6 +1011,7 @@ const STEPS = [
   {
     phase: 2,
     title: "Set I-term Relax for your size",
+    relax: true,
     lead: "This setting stops the quad overcorrecting after sharp moves. Bigger quads need a lower number.",
     todo: [
       "Go to PID Tuning, then PID Profile Settings.",
@@ -1486,7 +1488,7 @@ function presetMock() {
   </div>`;
 }
 function wirePreset(el) {
-  const root = el.querySelector(".prem");
+  const root = el.querySelector(".prem:not(.relm)");
   if (!root) return;
   const screen = root.querySelector(".bf-screen");
   const cursor = root.querySelector(".bf-cursor");
@@ -1579,6 +1581,130 @@ function wirePreset(el) {
     aim();
     if (!calm) start(false);
   });
+}
+
+function relaxMock() {
+  const row = (ctl, lab, f) => `<div class="bf-row${f ? " tgt" : ""}"${f ? ` data-f="${f}"` : ""}>${ctl}<span class="bf-lab">${lab}</span></div>`;
+  const num = v => `<span class="bf-in">${v}</span>`;
+  const sel = v => `<span class="bf-in sel">${v}</span>`;
+  const tog = on => `<span class="bf-tog${on ? " on" : ""}"></span>`;
+  return `
+  <div class="bf prem relm">
+    <div class="bf-guide">
+      <p class="bf-step"></p>
+      <p class="bf-say" aria-live="polite"></p>
+      <div class="bf-ctl">
+        <button type="button" class="btn" data-act="prev">Previous</button>
+        <button type="button" class="btn primary" data-act="next">Show next</button>
+        <button type="button" class="btn" data-act="play">Play all</button>
+      </div>
+    </div>
+    <p class="bf-note">This is a practice copy of the PID Tuning screen. Nothing here changes your quad.</p>
+    <div class="bf-screen">
+      <div class="bf-tabs"><span class="on">Setup</span><span>Configuration</span><span>Presets</span><span class="tgt" data-f="nav">PID Tuning</span><span>Receiver</span></div>
+      <div class="bfp-body" style="padding:0">
+        <div class="bf-tabs sub"><span class="on">PID Profile Settings</span><span>Rateprofile Settings</span><span>Filter Settings</span></div>
+        <div class="bf-cols">
+          <div class="bf-box">
+            <div class="bf-title">PID Controller Settings</div>
+            <div class="bf-sub">I Term Relax</div>
+            ${row(tog(true), "I Term Relax", "relax")}
+            ${row(sel("RP"), "Axes")}
+            ${row(sel("Setpoint"), "Type")}
+            ${row(num(15), "Cutoff", "cut")}
+            <div class="bf-sub">Anti Gravity</div>
+            ${row(tog(true), "Anti Gravity")}
+            ${row(num(80), "Gain")}
+            <div class="bf-sub">I Term Rotation</div>
+            ${row(tog(false), "I Term Rotation")}
+          </div>
+        </div>
+      </div>
+      <div class="bf-foot"><span class="bf-btn off">Refresh</span><span class="bf-btn" data-f="save">Save</span></div>
+      <svg class="bf-cursor" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 2v17l4.6-4.2 3 7 2.8-1.2-3-6.8H18z" fill="#fff" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/></svg>
+    </div>
+  </div>`;
+}
+function wireRelax(el) {
+  const root = el.querySelector(".relm");
+  if (!root) return;
+  const z = SIZES.find(x => x.key === size);
+  const want = size === "big" ? "10" : "15";
+  const guide = [
+    { f: "nav", say: "<strong>PID Tuning tab.</strong> Click PID Tuning in the menu down the left side of Betaflight. It opens on PID Profile Settings." },
+    { f: "relax", say: "<strong>I Term Relax.</strong> Find it in the PID Controller Settings box. Leave it switched <b>on</b>." },
+    { f: "cut", say: size === "big"
+      ? "<strong>Cutoff.</strong> A 6 inch can stay at 15. For a 7 inch, type a number from 7 to 10. The practice screen uses <b>10</b> as an example."
+      : `<strong>Cutoff.</strong> Leave it at <b>15</b>. That’s the default, and it suits your ${z ? z.own : "quad"}.` },
+    { f: "save", say: want === "15"
+      ? "<strong>Save.</strong> Nothing changed, so there’s nothing to save. If you did type a new number, click Save in the bottom right corner."
+      : "<strong>Save.</strong> Click Save in the bottom right corner. Your change is lost if you skip this." }
+  ];
+  const screen = root.querySelector(".bf-screen");
+  const cursor = root.querySelector(".bf-cursor");
+  const stepEl = root.querySelector(".bf-step");
+  const say = root.querySelector(".bf-say");
+  const prevB = root.querySelector('[data-act="prev"]');
+  const nextB = root.querySelector('[data-act="next"]');
+  const playB = root.querySelector('[data-act="play"]');
+  const tabs = [...root.querySelectorAll(".bf-tabs:not(.sub) span")];
+  const body = root.querySelector(".bfp-body");
+  const tgt = f => root.querySelector(`[data-f="${f}"]`);
+  const cutIn = tgt("cut").querySelector(".bf-in");
+  const last = guide.length - 1;
+  const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let idx = 0, timer = null, play = null;
+
+  const setTab = on => {
+    tabs.forEach(t => t.classList.toggle("on", (t.dataset.f === "nav") === on));
+    body.classList.toggle("dim", !on);
+  };
+  const aim = () => {
+    let c = tgt(guide[idx].f);
+    c = c.querySelector(".bf-tog") || c.querySelector(".bf-in") || c;
+    let x = c.offsetWidth / 2, y = c.offsetHeight / 2;
+    while (c && c !== screen) { x += c.offsetLeft; y += c.offsetTop; c = c.offsetParent; }
+    cursor.style.transform = `translate(${x}px, ${y}px)`;
+  };
+  const show = (i, scroll) => {
+    clearTimeout(timer);
+    idx = i;
+    guide.forEach((g, j) => {
+      const n = tgt(g.f);
+      n.classList.toggle("now", j === i);
+      n.classList.toggle("done", j < i && j > 0);
+      n.classList.remove("flash");
+    });
+    setTab(i > 0);
+    cutIn.textContent = i > 2 ? want : "15";
+    stepEl.textContent = `Step ${i + 1} of ${guide.length}`;
+    say.innerHTML = guide[i].say;
+    prevB.disabled = i === 0;
+    nextB.disabled = i === last;
+    aim();
+    if (i === 0) timer = setTimeout(() => setTab(true), calm ? 0 : 900);
+    if (i === 2 && want !== "15") timer = setTimeout(() => { cutIn.textContent = want; tgt("cut").classList.add("flash"); }, calm ? 0 : 900);
+    if (scroll) {
+      const r = screen.getBoundingClientRect();
+      if (r.top < 0 || r.bottom > window.innerHeight) screen.scrollIntoView({ block: "nearest", behavior: calm ? "auto" : "smooth" });
+    }
+  };
+  const stop = () => { clearInterval(play); play = null; playB.textContent = "Play all"; };
+  const start = scroll => {
+    if (idx === last) show(0, scroll);
+    playB.textContent = "Pause";
+    play = setInterval(() => {
+      if (!root.isConnected || idx === last) return stop();
+      show(idx + 1, scroll);
+    }, 3000);
+  };
+
+  prevB.addEventListener("click", () => { stop(); show(idx - 1, true); });
+  nextB.addEventListener("click", () => { stop(); show(idx + 1, true); });
+  playB.addEventListener("click", () => { if (play) return stop(); start(true); });
+  window.addEventListener("resize", () => { if (root.isConnected) aim(); });
+  show(0, false);
+  requestAnimationFrame(() => { aim(); if (!calm) start(false); });
 }
 
 const SPX = f => 44 + f / 1000 * 260;
@@ -2028,13 +2154,14 @@ function cardFor(i) {
     <h2>${s.title}</h2>
     <p class="lead">${s.lead}</p>
     <ul class="todo">${s.todo.map(t => `<li>${t}</li>`).join("")}</ul>
-    ${s.mock ? filterMock(s) : ""}${s.preset ? presetMock() : ""}${s.ptb ? ptbMock(s.ptb) : ""}${s.pid ? pidMock(s) : ""}
+    ${s.mock ? filterMock(s) : ""}${s.preset ? presetMock() : ""}${s.relax ? relaxMock() : ""}${s.ptb ? ptbMock(s.ptb) : ""}${s.pid ? pidMock(s) : ""}
     ${s.good ? `<p class="note"><strong>Good sign:</strong> ${s.good}</p>` : ""}
     ${s.warn ? `<p class="note warn"><strong>Stop if:</strong> ${s.warn}</p>` : ""}
     ${sizeNote(s)}
     <details><summary>Stuck on this step?</summary><p>${s.stuck}</p></details>`;
   if (s.mock) wireMock(el, s);
   if (s.preset) wirePreset(el);
+  if (s.relax) wireRelax(el);
   wirePtb(el);
   wirePid(el, s);
   return el;
