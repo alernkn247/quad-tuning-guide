@@ -1,0 +1,1891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Quad tuning, one step at a time</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bench: #dfe6ea;
+  --card: #fbfcfc;
+  --card-edge: #c9d3d9;
+  --ink: #1b2a33;
+  --ink-soft: #55656f;
+  --signal: #ffb700;
+  --signal-ink: #2a1f00;
+  --trace: #0b8a84;
+  --alert: #c8402b;
+  --tint: #eef3f5;
+  --shadow: 0 18px 40px -18px rgba(27, 42, 51, .45);
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bench: #131b21;
+    --card: #1f2b33;
+    --card-edge: #33434d;
+    --ink: #eef3f5;
+    --ink-soft: #a3b3bc;
+    --signal: #ffc021;
+    --signal-ink: #2a1f00;
+    --trace: #3cc9c1;
+    --alert: #ff7a63;
+    --tint: #26343d;
+    --shadow: 0 18px 40px -18px rgba(0, 0, 0, .8);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bench: #131b21;
+  --card: #1f2b33;
+  --card-edge: #33434d;
+  --ink: #eef3f5;
+  --ink-soft: #a3b3bc;
+  --signal: #ffc021;
+  --signal-ink: #2a1f00;
+  --trace: #3cc9c1;
+  --alert: #ff7a63;
+  --tint: #26343d;
+  --shadow: 0 18px 40px -18px rgba(0, 0, 0, .8);
+}
+*, *::before, *::after { box-sizing: inherit; }
+html { height: 100%; scroll-padding-top: env(safe-area-inset-top, 0px); }
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bench);
+  color: var(--ink);
+  font-family: "Barlow", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 1.0625rem;
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+}
+.wrap {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 2rem;
+}
+.site-title {
+  font-family: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif;
+  font-weight: 700;
+  font-size: 1.25rem;
+  margin: 0 0 1rem;
+}
+.phases {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: .375rem;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  list-style: none;
+}
+.phase-btn {
+  width: 100%;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: .875rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+.phase-btn .bar {
+  display: block;
+  height: .375rem;
+  border-radius: 1rem;
+  background: var(--card-edge);
+  margin-bottom: .375rem;
+  overflow: hidden;
+}
+.phase-btn .fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--signal);
+  border-radius: 1rem;
+  transition: width .35s ease;
+}
+.phase-btn[aria-current="true"] { color: var(--ink); font-weight: 600; }
+.phase-btn:focus-visible, .btn:focus-visible, summary:focus-visible {
+  outline: 3px solid var(--trace);
+  outline-offset: 3px;
+  border-radius: .375rem;
+}
+.stage {
+  position: relative;
+  display: grid;
+  perspective: 1400px;
+}
+.stage::before, .stage::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 3rem;
+  background: var(--card);
+  border: 1px solid var(--card-edge);
+  border-radius: 1.125rem;
+}
+.stage::before { transform: translateY(.875rem) scaleX(.9); opacity: .45; }
+.stage::after { transform: translateY(.4375rem) scaleX(.95); opacity: .75; }
+.card {
+  grid-area: 1 / 1;
+  position: relative;
+  z-index: 1;
+  align-self: start;
+  background: var(--card);
+  border: 1px solid var(--card-edge);
+  border-radius: 1.125rem;
+  box-shadow: var(--shadow);
+  padding: 1.5rem 1.375rem 1.375rem;
+  transform-origin: 50% 160%;
+  transition: transform .5s cubic-bezier(.2, .7, .2, 1), opacity .3s ease;
+  backface-visibility: hidden;
+}
+.card.enter-next { transform: rotateX(-50deg) translateY(22%); opacity: 0; }
+.card.leave-next { transform: rotateX(50deg) translateY(-22%); opacity: 0; pointer-events: none; }
+.card.enter-back { transform: rotateX(50deg) translateY(-22%); opacity: 0; }
+.card.leave-back { transform: rotateX(-50deg) translateY(22%); opacity: 0; pointer-events: none; }
+.count {
+  display: flex;
+  align-items: baseline;
+  gap: .5rem;
+  color: var(--ink-soft);
+  font-size: .9375rem;
+  margin: 0 0 .5rem;
+}
+.count b {
+  font-family: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif;
+  font-weight: 700;
+  font-size: 1.125rem;
+  color: var(--signal-ink);
+  background: var(--signal);
+  border-radius: .5rem;
+  padding: 0 .5rem;
+  line-height: 1.6;
+}
+.card h2 {
+  font-family: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif;
+  font-weight: 700;
+  font-size: clamp(1.625rem, 6vw, 2.125rem);
+  line-height: 1.1;
+  margin: 0 0 .625rem;
+  text-wrap: balance;
+}
+.lead { margin: 0 0 1rem; color: var(--ink-soft); }
+.todo {
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: .5rem;
+}
+.todo li {
+  position: relative;
+  padding-left: 1.625rem;
+}
+.todo li::before {
+  content: "";
+  position: absolute;
+  left: .125rem;
+  top: .5em;
+  width: .625rem;
+  height: .625rem;
+  border-radius: 50%;
+  border: 2px solid var(--trace);
+}
+code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: .9em;
+  background: var(--tint);
+  border-radius: .3125rem;
+  padding: .0625rem .3125rem;
+}
+.note {
+  margin: 0 0 .625rem;
+  padding: .625rem .75rem;
+  border-radius: .625rem;
+  background: var(--tint);
+  border-left: .25rem solid var(--trace);
+}
+.note.warn { border-left-color: var(--alert); }
+.note.size { border-left-color: var(--signal); }
+.picks { display: grid; gap: .625rem; margin: 0 0 .5rem; }
+.pick {
+  display: grid;
+  grid-template-columns: 4.25rem 1fr auto;
+  align-items: center;
+  gap: .875rem;
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  padding: .5rem .875rem .5rem .5rem;
+  border-radius: 1rem;
+  border: 2px solid var(--card-edge);
+  background: var(--card);
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease;
+}
+.pick:hover {
+  border-color: var(--ink-soft);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 18px -12px rgba(27, 42, 51, .6);
+}
+.pick:active { transform: translateY(0); }
+.pick:focus-visible { outline: 3px solid var(--trace); outline-offset: 3px; }
+.pick-ico {
+  display: block;
+  width: 4.25rem;
+  height: 4.25rem;
+  border-radius: .75rem;
+  background: var(--tint);
+  color: var(--ink);
+}
+.pick-ico svg { display: block; width: 100%; height: 100%; }
+.pick-txt { display: grid; gap: .0625rem; }
+.pick b {
+  font-family: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif;
+  font-weight: 700;
+  font-size: 1.375rem;
+  line-height: 1.15;
+}
+.pick small { color: var(--ink-soft); font-size: .9375rem; line-height: 1.3; }
+.pick-go {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  border: 2px solid var(--card-edge);
+  color: var(--ink-soft);
+  font-weight: 700;
+}
+.pick-go::before { content: "\203A"; font-size: 1.25rem; line-height: 1; }
+.pick[aria-pressed="true"] { border-color: var(--signal); background: var(--tint); }
+.pick[aria-pressed="true"] .pick-ico { background: var(--card); }
+.pick[aria-pressed="true"] .pick-go {
+  background: var(--signal);
+  border-color: var(--signal);
+  color: var(--signal-ink);
+}
+.pick[aria-pressed="true"] .pick-go::before { content: "\2713"; font-size: 1rem; }
+.sizebar {
+  display: flex;
+  align-items: baseline;
+  gap: .75rem;
+  margin: -.5rem 0 1rem;
+  font-size: .9375rem;
+  color: var(--ink-soft);
+}
+.sizebar[hidden] { display: none; }
+.sizebar button {
+  font: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--ink);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.sizebar button:focus-visible { outline: 3px solid var(--trace); outline-offset: 3px; border-radius: .25rem; }
+.note strong { font-weight: 600; }
+@media (prefers-reduced-motion: reduce) {
+  .pick { transition: none; }
+  .pick:hover { transform: none; }
+}
+body.wide .wrap { max-width: 62rem; }
+.bf {
+  --bf-bg: #f4f4f4;
+  --bf-box: #ffffff;
+  --bf-bar: #e2e2e2;
+  --bf-line: #c9c9c9;
+  --bf-text: #2e2e2e;
+  --bf-in: #ffffff;
+  --bf-acc: #ffbb00;
+  --bf-tab: #3a3a3a;
+  --bf-tabtext: #e8e8e8;
+  margin: 0 0 1rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .bf {
+    --bf-bg: #2c2e2d;
+    --bf-box: #383a39;
+    --bf-bar: #474948;
+    --bf-line: #5c5e5d;
+    --bf-text: #e8e8e8;
+    --bf-in: #262726;
+    --bf-tab: #1d1e1e;
+  }
+}
+:root[data-theme="dark"] .bf {
+  --bf-bg: #2c2e2d;
+  --bf-box: #383a39;
+  --bf-bar: #474948;
+  --bf-line: #5c5e5d;
+  --bf-text: #e8e8e8;
+  --bf-in: #262726;
+  --bf-tab: #1d1e1e;
+}
+.bf-guide {
+  position: sticky;
+  top: calc(env(safe-area-inset-top, 0px) + .5rem);
+  z-index: 5;
+  background: var(--card);
+  border: 2px solid var(--signal);
+  border-radius: .75rem;
+  padding: .75rem;
+  margin-bottom: .75rem;
+  box-shadow: var(--shadow);
+}
+.bf-step { margin: 0; font-size: .875rem; color: var(--ink-soft); }
+.bf-say { margin: .125rem 0 .625rem; min-height: 4.5em; }
+.bf-say b {
+  background: var(--signal);
+  color: var(--signal-ink);
+  padding: 0 .375rem;
+  border-radius: .375rem;
+}
+.bf-ctl { display: flex; flex-wrap: wrap; gap: .5rem; }
+.bf-ctl .btn { padding: .5rem .875rem; font-size: .9375rem; }
+.bf-note { font-size: .875rem; color: var(--ink-soft); margin: 0 0 .5rem; }
+.bf-screen {
+  position: relative;
+  background: var(--bf-bg);
+  color: var(--bf-text);
+  border: 1px solid var(--bf-line);
+  border-radius: .5rem;
+  font-family: "Open Sans", "Segoe UI", Arial, sans-serif;
+  font-size: .8125rem;
+  line-height: 1.35;
+}
+.bf-tabs {
+  display: flex;
+  background: var(--bf-tab);
+  color: var(--bf-tabtext);
+  border-radius: .4375rem .4375rem 0 0;
+  overflow-x: auto;
+}
+.bf-tabs span { padding: .5rem .75rem; white-space: nowrap; opacity: .7; }
+.bf-tabs .on { background: var(--bf-acc); color: #000; opacity: 1; font-weight: 600; }
+.bf-sliders {
+  display: grid;
+  gap: .375rem;
+  padding: .75rem;
+  background: var(--bf-box);
+  border-bottom: 1px solid var(--bf-line);
+}
+.bf-slide {
+  display: grid;
+  grid-template-columns: 11.5rem 1fr 3.25rem;
+  align-items: center;
+  gap: .625rem;
+  padding: .3125rem .375rem;
+  border-radius: .25rem;
+}
+.bf-track {
+  position: relative;
+  height: .375rem;
+  background: var(--bf-line);
+  border-radius: 1rem;
+}
+.bf-thumb {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 1rem;
+  height: 1rem;
+  margin: -.5rem 0 0 -.5rem;
+  border-radius: 50%;
+  background: var(--bf-acc);
+  border: 1px solid rgba(0, 0, 0, .4);
+  transition: left .7s ease;
+}
+.bf-cols { display: grid; gap: .75rem; padding: .75rem; }
+@media (min-width: 48rem) {
+  .bf-cols { grid-template-columns: 1fr 1fr; align-items: start; }
+}
+.bf-box {
+  background: var(--bf-box);
+  border: 1px solid var(--bf-line);
+  border-radius: .25rem;
+  padding-bottom: .375rem;
+}
+.bf-title {
+  background: var(--bf-bar);
+  font-weight: 600;
+  padding: .4375rem .625rem;
+  border-bottom: 1px solid var(--bf-line);
+  border-radius: .1875rem .1875rem 0 0;
+}
+.bf-sub {
+  font-weight: 600;
+  padding: .5rem .625rem .25rem;
+  margin-top: .375rem;
+  border-top: 1px solid var(--bf-line);
+}
+.bf-title + .bf-sub { border-top: 0; margin-top: 0; }
+.bf-row {
+  display: grid;
+  grid-template-columns: 4.25rem 1fr;
+  gap: .5rem;
+  align-items: center;
+  padding: .1875rem .625rem;
+  border-radius: .25rem;
+}
+.bf-row:not(.tgt) { opacity: .55; }
+.bf-in {
+  display: block;
+  min-height: 1.5rem;
+  background: var(--bf-in);
+  border: 1px solid var(--bf-line);
+  border-radius: .1875rem;
+  padding: .125rem .375rem;
+  font-variant-numeric: tabular-nums;
+}
+.bf-in.sel { font-size: .75rem; padding-top: .1875rem; }
+.bf-tog {
+  justify-self: start;
+  position: relative;
+  width: 2rem;
+  height: 1rem;
+  border-radius: 1rem;
+  background: var(--bf-line);
+}
+.bf-tog::after {
+  content: "";
+  position: absolute;
+  top: .125rem;
+  left: .125rem;
+  width: .75rem;
+  height: .75rem;
+  border-radius: 50%;
+  background: #fff;
+}
+.bf-tog.on { background: var(--bf-acc); }
+.bf-tog.on::after { left: 1.125rem; }
+.bf-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: .5rem;
+  padding: .625rem .75rem;
+  background: var(--bf-bar);
+  border-top: 1px solid var(--bf-line);
+  border-radius: 0 0 .4375rem .4375rem;
+}
+.bf-btn {
+  padding: .375rem .875rem;
+  border-radius: .1875rem;
+  background: var(--bf-acc);
+  color: #000;
+  font-weight: 600;
+}
+.tgt.now { background: color-mix(in srgb, var(--bf-acc) 20%, transparent); }
+.tgt.now .bf-in, .tgt.now .bf-thumb, .bf-btn.now {
+  outline: 2px solid var(--bf-acc);
+  outline-offset: 1px;
+  animation: bfpulse 1.3s ease-out infinite;
+}
+.bf-btn.now { outline-color: var(--bf-text); }
+.tgt.flash .bf-in { animation: bfflash .8s ease-out, bfpulse 1.3s ease-out .8s infinite; }
+.tgt.done .bf-lab::after { content: " \2713"; color: var(--trace); font-weight: 700; }
+@keyframes bfpulse {
+  0% { box-shadow: 0 0 0 0 rgba(255, 187, 0, .85); }
+  100% { box-shadow: 0 0 0 .75rem rgba(255, 187, 0, 0); }
+}
+@keyframes bfflash {
+  0% { background: var(--bf-acc); color: #000; transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+.ptb { margin: 0 0 1rem; }
+.ptb .bf-guide { position: static; }
+.ptb-screen {
+  background: #161616;
+  color: #e6e6e6;
+  border: 1px solid #444;
+  border-radius: .5rem;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: .8125rem;
+}
+.ptb-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .375rem;
+  padding: .5rem;
+  background: #262626;
+  border-bottom: 1px solid #444;
+  border-radius: .4375rem .4375rem 0 0;
+}
+.ptb-btn {
+  padding: .25rem .625rem;
+  border-radius: .1875rem;
+  background: #3a3a3a;
+  border: 1px solid #5a5a5a;
+  color: #eee;
+}
+.ptb-plots { display: grid; gap: .5rem; padding: .625rem; }
+.ptb-plots figure { margin: 0; }
+.ptb-plots svg { display: block; width: 100%; height: auto; }
+.ptb-ttl {
+  text-align: center;
+  font-weight: 700;
+  padding: .125rem;
+  margin-bottom: .1875rem;
+  border-radius: .1875rem;
+}
+.ptb-ttl small { display: block; font-weight: 400; color: #aaa; }
+.ptb-t { font: 10px Arial, Helvetica, sans-serif; fill: #ddd; }
+.hz { fill: none; stroke: transparent; stroke-width: 2; pointer-events: none; }
+.hz.hl { stroke: #ffbb00; stroke-dasharray: 6 3; animation: hzpulse .9s ease-in-out infinite alternate; }
+@keyframes hzpulse { from { stroke-opacity: .35; } to { stroke-opacity: 1; } }
+.ptb-btn.hl, .ptb-ttl.hl, .ptb-opts.hl {
+  outline: 2px solid #ffbb00;
+  outline-offset: 2px;
+  animation: bfpulse 1.3s ease-out infinite;
+}
+.ptb-q { font-weight: 600; margin: .875rem 0 .5rem; }
+.ptb-opts { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .625rem; border-radius: 1.5rem; }
+.ptb-opt {
+  font: inherit;
+  font-size: .9375rem;
+  padding: .5rem .875rem;
+  border-radius: 2rem;
+  border: 2px solid var(--card-edge);
+  background: var(--card);
+  color: var(--ink);
+  cursor: pointer;
+}
+.ptb-opt[aria-pressed="true"] {
+  border-color: var(--signal);
+  background: var(--signal);
+  color: var(--signal-ink);
+  font-weight: 600;
+}
+.ptb-opt:focus-visible { outline: 3px solid var(--trace); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) {
+  .hz.hl, .ptb-btn.hl, .ptb-ttl.hl, .ptb-opts.hl { animation: none; }
+}
+.pidm .bf-guide { position: static; }
+.pidm .ptb-q { margin: 0 0 .5rem; }
+.pidm .ptb-opts { margin-bottom: .5rem; }
+.pidm .bf-say { min-height: 3em; margin: 0; }
+.bf-expert {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: .5rem;
+  padding: .375rem .75rem;
+  background: var(--bf-box);
+  border-bottom: 1px solid var(--bf-line);
+}
+.bf-scroll {
+  overflow-x: auto;
+  padding: .5rem .625rem;
+  background: var(--bf-box);
+  border-bottom: 1px solid var(--bf-line);
+}
+.bf-pid { border-collapse: separate; border-spacing: .25rem; width: 100%; min-width: 25rem; }
+.bf-pid th { font-weight: 600; font-size: .75rem; text-align: left; padding: 0 .125rem; }
+.bf-pid tbody th { color: #fff; padding: .25rem .5rem; border-radius: .1875rem; }
+.bf-pid .ax-r th { background: #c9405a; }
+.bf-pid .ax-p th { background: #3a8f38; }
+.bf-pid .ax-y th { background: #3f6db3; }
+.bf-pid .bf-in.flash { animation: bfflash .8s ease-out; }
+.bf-sliders.pid .bf-slide { grid-template-columns: 10.5rem 1fr 3.25rem; }
+.bf-slide small { display: block; opacity: .7; font-size: .6875rem; }
+@media (max-width: 30rem) {
+  .bf-sliders.pid .bf-slide { grid-template-columns: 1fr 3.25rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bf-pid .bf-in.flash { animation: none; }
+}
+.bf-row.off { opacity: .22; }
+.tgt.now .bf-tog {
+  outline: 2px solid var(--bf-acc);
+  outline-offset: 2px;
+  animation: bfpulse 1.3s ease-out infinite;
+}
+.bf-cursor { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .tgt.now .bf-tog { animation: none; }
+}
+.bf-cursor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  z-index: 4;
+  pointer-events: none;
+  transition: transform .6s cubic-bezier(.3, .7, .2, 1);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .5));
+}
+@media (max-width: 30rem) {
+  .bf-slide { grid-template-columns: 1fr 3.25rem; }
+  .bf-slide .bf-lab { grid-column: 1 / -1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bf-thumb, .bf-cursor { transition: none; }
+  .tgt.now .bf-in, .tgt.now .bf-thumb, .bf-btn.now, .tgt.flash .bf-in { animation: none; }
+}
+.note strong { font-weight: 600; }
+details {
+  margin-top: .25rem;
+  color: var(--ink-soft);
+}
+summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--ink);
+  padding: .375rem 0;
+  width: fit-content;
+}
+details p { margin: .25rem 0 0; }
+.figs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: .5rem;
+  margin: 0 0 1rem;
+}
+.figs figure, .fig-wide { margin: 0; }
+.figs svg, .fig-wide svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: var(--tint);
+  border-radius: .625rem;
+}
+.fig-wide { margin-bottom: 1rem; }
+figcaption {
+  font-size: .875rem;
+  color: var(--ink-soft);
+  margin-top: .3125rem;
+  line-height: 1.3;
+}
+figcaption b { color: var(--ink); font-weight: 600; display: block; }
+.svg-text { font: 500 11px "Barlow", Arial, sans-serif; fill: var(--ink-soft); }
+.nav {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: .625rem;
+  margin-top: 2rem;
+}
+.btn {
+  font: inherit;
+  font-weight: 600;
+  font-size: 1.0625rem;
+  border-radius: .75rem;
+  padding: .875rem 1.25rem;
+  cursor: pointer;
+  border: 1px solid var(--card-edge);
+  background: var(--card);
+  color: var(--ink);
+}
+.btn.primary {
+  background: var(--signal);
+  border-color: var(--signal);
+  color: var(--signal-ink);
+}
+.btn:disabled { opacity: .4; cursor: default; }
+.btn:not(:disabled):active { transform: translateY(1px); }
+.hint {
+  text-align: center;
+  color: var(--ink-soft);
+  font-size: .875rem;
+  margin: .875rem 0 0;
+}
+@media (max-width: 26rem) {
+  .phase-btn .name { font-size: .75rem; }
+  .card { padding: 1.25rem 1rem 1.125rem; }
+  .figs { grid-template-columns: 1fr; }
+  .figs figure { display: grid; grid-template-columns: 7.5rem 1fr; gap: .75rem; align-items: center; }
+}
+@media (hover: none) { .hint { display: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .card { transition: opacity .2s ease; }
+  .card.enter-next, .card.leave-next, .card.enter-back, .card.leave-back { transform: none; }
+  .phase-btn .fill { transition: none; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 class="site-title">Quad tuning, one step at a time</h1>
+  <p class="sizebar" id="sizebar" hidden><span id="sizeLabel"></span><button type="button" id="changeSize">Change size</button></p>
+  <ol class="phases" id="phases"></ol>
+  <main class="stage" id="stage" aria-live="polite"></main>
+  <div class="nav">
+    <button class="btn" id="back" type="button">Back</button>
+    <button class="btn primary" id="next" type="button">Next step</button>
+  </div>
+  <p class="hint">You can also use the left and right arrow keys.</p>
+</div>
+
+<script>
+const PHASES = ["Get ready", "Hover and filters", "P and D", "Finish"];
+
+const SIZES = [
+  { key: "whoop", name: "Whoop", desc: "Ducted, props under 2 inch", own: "whoop" },
+  { key: "micro", name: "2 to 3 inch", desc: "Toothpicks and small cinewhoops", own: "2 to 3 inch quad" },
+  { key: "mid", name: "3.5 to 4 inch", desc: "Light freestyle and small long range", own: "3.5 to 4 inch quad" },
+  { key: "five", name: "5 inch", desc: "Standard freestyle and racing", own: "5 inch quad" },
+  { key: "big", name: "6 to 7 inch", desc: "Long range and heavy lifters", own: "6 to 7 inch quad" }
+];
+
+const STEPS = [
+  { phase: 0, pick: true },
+  {
+    phase: 0,
+    title: "Check the quad before you tune",
+    lead: "Tuning can’t fix a loose or damaged quad, so sort the hardware first.",
+    todo: [
+      "Fit a fresh set of props. Tuning on bent props gives you the wrong answers.",
+      "Tighten the frame, motor and stack screws.",
+      "Check the flight controller is secure and the capacitor is fitted.",
+      "Strap the battery so the quad balances in the middle."
+    ],
+    good: "Nothing rattles when you give it a shake.",
+    stuck: "A gritty motor or a bent prop will show up as noise later. Swap it now and save yourself the hunt."
+  },
+  {
+    phase: 0,
+    title: "Save your current settings",
+    lead: "This is your undo button. If anything goes wrong, you can go straight back.",
+    todo: [
+      "Open Betaflight and go to the CLI tab.",
+      "Type <code>diff all</code> and press Enter.",
+      "Click Save to File."
+    ],
+    good: "You have a text file with today’s date in its name.",
+    stuck: "To go back later, paste the file’s text into the CLI, then type <code>save</code>."
+  },
+  {
+    phase: 0,
+    title: "Check the CPU load",
+    lead: "A flight controller that’s too busy can’t filter or tune properly.",
+    todo: [
+      "Look at the CPU load figure at the bottom of the Betaflight window.",
+      "It should be under about 50%."
+    ],
+    good: "CPU load is under 50% with the quad sitting on the bench.",
+    stuck: "Over 50%? On the Configuration tab, set the PID loop to 4 kHz and keep the gyro at 8 kHz. You should never need to go lower than that."
+  },
+  {
+    phase: 0,
+    title: "Apply your radio link preset",
+    lead: "Betaflight needs to know how fast your radio sends stick data.",
+    todo: [
+      "Go to the Presets tab.",
+      "Search for your radio system, such as ELRS or Crossfire.",
+      "Pick the preset that matches your packet rate, for example 250 Hz.",
+      "Click Save and Reboot."
+    ],
+    good: "The preset name matches the packet rate shown on your radio.",
+    stuck: "No exact match? Pick the closest one. If you’re between two, go for the higher rate."
+  },
+  {
+    phase: 0,
+    title: "Turn on bidirectional DShot",
+    lead: "This switches on the RPM filter, which removes motor noise for you. It also records motor speed in your logs.",
+    todo: [
+      "Go to the Motors tab.",
+      "Switch on Bidirectional DShot.",
+      "Set Motor poles to the number of magnets in your motor bell.",
+      "Save and reboot."
+    ],
+    good: "With a battery plugged in, the Motors tab shows an error rate near 0%.",
+    stuck: "No RPM reading? Your ESC firmware may not support it. BLHeli_32, AM32 and Bluejay all do.",
+    size: {
+      whoop: "Most whoop motors have 12 magnets. Whoop ESCs usually need Bluejay firmware before this works.",
+      micro: "Most motors this size have 12 magnets. Count to be sure.",
+      mid: "Motors this size have 12 or 14 magnets. Count to be sure.",
+      five: "Almost all 5 inch motors have 14 magnets.",
+      big: "Almost all motors this size have 14 magnets."
+    }
+  },
+  {
+    phase: 0,
+    title: "Set up Blackbox logging",
+    lead: "The log records what the quad felt in the air. Every test in this guide is read from it.",
+    todo: [
+      "Go to the Blackbox tab.",
+      "Set the logging rate to about 2 kHz.",
+      "Set debug mode to <code>FFT_FREQ</code>.",
+      "Save, then click Erase Flash so the log starts empty."
+    ],
+    good: "The storage bar shows it’s empty.",
+    stuck: "Onboard flash memory is the most reliable. An SD card works too, but use a fast one, because gaps in the log spoil the results. On Betaflight older than 4.3, set debug mode to GYRO_SCALED instead.",
+    size: {
+      whoop: "Small motors spin very fast. If your board offers 4 kHz, use it for the hover test, then go back to 2 kHz so the memory lasts.",
+      micro: "Small motors spin very fast. If your board offers 4 kHz, use it for the hover test, then go back to 2 kHz so the memory lasts.",
+      mid: "If your board offers 4 kHz, it’s worth using for the hover test on a quad this small. Go back to 2 kHz afterwards.",
+      big: "Big props make lower-pitched noise, so 1.6 or 2 kHz is plenty."
+    }
+  },
+  {
+    phase: 0,
+    title: "Get PIDtoolbox",
+    lead: "PIDtoolbox is the program that turns your logs into graphs you can read.",
+    todo: [
+      "Download it from the PIDtoolbox author’s Patreon page. It’s a paid download that costs a few dollars.",
+      "Install it and open it once to check it runs."
+    ],
+    good: "PIDtoolbox opens and shows an Open file button.",
+    stuck: "The paid version adds a motor-line overlay that makes the hover test easier to read, but you can follow this guide without it."
+  },
+  {
+    phase: 1,
+    title: "Fly the hover test",
+    lead: "This shows how noisy the quad is when it’s doing nothing. Everyone flies it the same way, so the result is easy to judge.",
+    todo: [
+      "Take off and hover about a metre off the ground.",
+      "Hold it as still as you can for 30 to 40 seconds.",
+      "Land and disarm."
+    ],
+    good: "A boring flight. That’s exactly what you want here.",
+    stuck: "Don’t hover lower than about a metre. Air bouncing off the ground adds noise that isn’t really there. Angle mode is fine for this.",
+    size: {
+      whoop: "Indoors is fine. Keep away from walls, the floor and the ceiling."
+    }
+  },
+  {
+    phase: 1,
+    title: "Touch the motors",
+    lead: "Do this right after every landing. It’s your safety check for the whole process.",
+    todo: [
+      "Rest a finger on each motor bell.",
+      "Cool or slightly warm is fine.",
+      "If you can’t hold your finger there for 5 seconds, it’s too hot."
+    ],
+    warn: "Hot motors mean stop. Undo your last change before you fly again.",
+    stuck: "One motor much hotter than the rest usually means a bad motor, a damaged prop, or the weight sitting off-centre.",
+    size: {
+      whoop: "Tiny motors cool down in seconds, so check the moment you land.",
+      big: "Big props heat motors quickly. Check within a few seconds of landing."
+    }
+  },
+  {
+    phase: 1,
+    title: "Open the log in PIDtoolbox",
+    lead: "Get the log off the quad and onto your computer.",
+    todo: [
+      "Plug the quad in and open the Blackbox tab.",
+      "Click Save Flash to File. Give it a short, numbered name such as “01 hover”.",
+      "In PIDtoolbox, click Open file and choose it.",
+      "If it lists several logs, pick the long one."
+    ],
+    good: "You see wavy gyro and motor lines in the log viewer.",
+    stuck: "Short logs of a second or two are just you arming on the ground. To cut off take-off and landing, press I and drag to set the start, then O to set the end."
+  },
+  {
+    phase: 1,
+    title: "Read the noise graph",
+    lead: "This graph shows how much the quad is shaking, and how fast. The practice screen below teaches you to read it.",
+    ptb: "spec",
+    todo: [
+      "Press “Show next” to learn what each part means.",
+      "Then pick the example that looks most like yours."
+    ],
+    good: "Tall peaks standing on a low, quiet floor.",
+    stuck: "Roll, pitch and yaw each get their own graph. Judge roll and pitch. Yaw is usually the quietest.",
+    size: {
+      whoop: "Ducts and plastic frames make whoops noisier. Expect a higher floor than the example.",
+      big: "On a quad with a camera on the front, the front and back motors spin at different speeds, so each peak may look doubled."
+    }
+  },
+  {
+    phase: 1,
+    title: "Find where the motor noise starts",
+    lead: "You need one number from the graph: the lowest frequency where motor noise begins.",
+    ptb: "low",
+    todo: [
+      "Find the first tall motor peak.",
+      "Click the left foot of that peak, where the line starts to climb.",
+      "Write down the frequency PIDtoolbox shows."
+    ],
+    good: "You have one number written down, such as 120 Hz.",
+    stuck: "Use the data tip tool in PIDtoolbox, then click on the line. It shows the frequency at that point.",
+    size: {
+      whoop: "Small props spin fast, so expect a high number.",
+      big: "Big props spin slowly, so expect a low number. Around 110 Hz is typical for a 7 inch."
+    }
+  },
+  {
+    phase: 1,
+    title: "Set the filters",
+    lead: "The aim is to remove motor noise and nothing more. Extra filtering adds delay, and delay makes the quad fly worse. Follow the animated guide below.",
+    todo: [
+      "Open Betaflight and go to PID Tuning, then Filter Settings.",
+      "Press “Show next change” and copy each change onto your real screen."
+    ],
+    mock: true,
+    filt: {
+      whoop: { rpm: "150", lp1: "off", gyro: "1.0", dterm: "1.0" },
+      micro: { rpm: "130", lp1: "off", gyro: "1.0", dterm: "1.0" },
+      mid: { rpm: "120", lp1: "off", gyro: "1.0", dterm: "1.0" },
+      five: { rpm: "100", lp1: "off", gyro: "1.0", dterm: "1.0" },
+      big: { rpm: "80", lp1: "off", gyro: "1.0", dterm: "1.0" }
+    },
+    good: "The quad arms and idles smoothly, with no grinding sound.",
+    stuck: "Can’t find a setting? Switch on Expert Mode at the top of Betaflight. If your noise graph showed an extra peak that you couldn’t fix by tightening things, the Dynamic Notch Filter is the tool for it. Leave it at its defaults to begin with.",
+    size: {
+      whoop: "Small quads are often too noisy to switch off Gyro Lowpass 1. If your floor wasn’t below −40 dB, leave it on.",
+      micro: "Small quads are often too noisy to switch off Gyro Lowpass 1. If your floor wasn’t below −40 dB, leave it on.",
+      five: "Betaflight’s default of 100 Hz is made for 5 inch quads, so your own number will usually land close to it.",
+      big: "Big props spin slower, so this number needs to come down from the default. A typical 7 inch ends up around 80."
+    }
+  },
+  {
+    phase: 2,
+    title: "Set I-term Relax for your size",
+    lead: "This setting stops the quad overcorrecting after sharp moves. Bigger quads need a lower number.",
+    todo: [
+      "Go to PID Tuning, then PID Profile Settings.",
+      "Find I Term Relax and its Cutoff number.",
+      "Set the Cutoff for your size, then save."
+    ],
+    good: "The Cutoff matches the value for your quad size.",
+    stuck: "Can’t see it? Switch on Expert Mode at the top of Betaflight.",
+    size: {
+      whoop: "Leave it at 15, the default.",
+      micro: "Leave it at 15, the default.",
+      mid: "Leave it at 15, the default.",
+      five: "Leave it at 15, the default. It’s made for 5 inch quads.",
+      big: "A 6 inch can stay at 15. For a 7 inch, set it to about 7 to 10. For 8 inch and larger, about 5."
+    }
+  },
+  {
+    phase: 2,
+    title: "Clear the sliders for testing",
+    lead: "You’re about to test P and D on their own. Switching the other helpers off stops them muddying the results.",
+    todo: [
+      "Go to PID Tuning, PID Profile Settings, with Expert Mode on.",
+      "Press “Show next change” and copy each change onto your real screen."
+    ],
+    pid: {
+      seq: [
+        { set: { ff: 0 }, why: "Feedforward would hide what P and D are doing." },
+        { set: { dmax: 0 }, why: "This keeps D steady, so every test is fair." },
+        { set: { i: 0 }, why: "You’ll set I properly later." },
+        { set: { d: 0.6 }, why: "You start with too little brake on purpose, then work upwards. That way you never have too much D, which is what overheats motors." },
+        { save: true }
+      ]
+    },
+    good: "Stick Response, Dynamic Damping and Drift – Wobble all read 0, and Damping reads 0.6.",
+    stuck: "The quad will feel loose and bouncy like this. That’s expected. It’s only for the test flights."
+  },
+  {
+    phase: 2,
+    title: "Make the test flights easy to fly",
+    lead: "The next flights use quick stick wiggles. These settings keep the quad calm while you do them.",
+    todo: [
+      "On Rateprofile Settings, switch to a spare rate profile so your normal rates stay untouched.",
+      "Set Center Sensitivity and Max Rate to 150 on roll, pitch and yaw. That makes the sticks respond in a straight line.",
+      "On PID Profile Settings, set the Angle Limit to 30.",
+      "Save. Fly the next flights in Angle mode."
+    ],
+    good: "A full stick push tilts the quad to 30 degrees and no further.",
+    stuck: "Still feels out of control? Drop the Angle Limit to 20."
+  },
+  {
+    phase: 2,
+    title: "Fly the wobble test",
+    lead: "Flips and rolls give very little data, because most of the flight is just cruising. Wobbles pack lots of sharp moves into a short flight.",
+    todo: [
+      "Take off in Angle mode and hover at about head height.",
+      "Jab the roll stick left and right, quickly, about 20 times.",
+      "Do the same on pitch, forward and back, about 20 times.",
+      "Keep the stick moving the whole time, then land and disarm."
+    ],
+    good: "The quad rocks sharply from side to side but stays roughly in one place.",
+    stuck: "Line of sight is easier than goggles for this. You can mix roll and pitch jabs together. You can skip yaw.",
+    size: {
+      whoop: "Indoors is fine. Use smaller jabs so it stays in the room.",
+      big: "Give yourself plenty of open space. A big quad swings a lot of weight around."
+    }
+  },
+  {
+    phase: 2,
+    title: "Repeat at five Damping values",
+    lead: "You fly the same wobble test five times, raising Damping a little each time. Then you compare the results.",
+    todo: [
+      "Pick the flight you’re on below to see the Damping value.",
+      "Set it in Betaflight and save.",
+      "Fly the wobble test, land, disarm. Then touch the motors.",
+      "You don’t need to download the log between flights."
+    ],
+    pid: {
+      start: { ff: 0, dmax: 0, i: 0, d: 0.6 },
+      q: "Which flight are you on?",
+      opts: [
+        { name: "Flight 1", say: "<strong>Flight 1.</strong> Damping stays at <b>0.6</b>. Fly the wobble test, land and disarm." },
+        { name: "Flight 2", set: { d: 0.8 }, say: "<strong>Flight 2.</strong> Drag Damping to <b>0.8</b> and click Save. Then fly the wobble test, land and disarm." },
+        { name: "Flight 3", set: { d: 1.0 }, say: "<strong>Flight 3.</strong> Drag Damping to <b>1.0</b> and click Save. Then fly the wobble test, land and disarm." },
+        { name: "Flight 4", set: { d: 1.2 }, say: "<strong>Flight 4.</strong> Drag Damping to <b>1.2</b> and click Save. Then fly the wobble test, land and disarm." },
+        { name: "Flight 5", set: { d: 1.4 }, say: "<strong>Flight 5.</strong> Drag Damping to <b>1.4</b> and click Save. Then fly the wobble test, land and disarm." }
+      ]
+    },
+    warn: "Motors getting hot as Damping goes up? Stop there. Don’t fly the higher values.",
+    stuck: "Each time you arm, Betaflight starts a new log, so all five flights end up in one file."
+  },
+  {
+    phase: 2,
+    title: "Compare the five curves",
+    lead: "Now you find the right amount of brake. The practice screen below shows what to look for.",
+    ptb: "sweep",
+    todo: [
+      "Save the log file and open it in PIDtoolbox. Tick the five long logs.",
+      "Press “Show next” to learn what the curves mean.",
+      "Then pick the example that looks most like yours."
+    ],
+    good: "You’ve chosen one Damping value: the lowest one where the bump is nearly gone.",
+    stuck: "The Y correction button lines the curves up on the target line, which makes the bumps easier to compare.",
+    size: {
+      whoop: "If all five curves look the same, the tune is too weak to measure. Raise Master Multiplier to 1.2 and fly the five flights again.",
+      micro: "If all five curves look the same, the tune is too weak to measure. Raise Master Multiplier to 1.2 and fly the five flights again."
+    }
+  },
+  {
+    phase: 2,
+    title: "Even up pitch and roll",
+    lead: "Most quads are slower on pitch, because the battery and camera spread weight front to back.",
+    todo: [
+      "In the Step Resp Tool, compare the latency number for roll and for pitch.",
+      "Tell the guide below what you see.",
+      "If you change anything, fly one more wobble test to check."
+    ],
+    pid: {
+      start: { ff: 0, dmax: 0, i: 0.4, d: 1.4 },
+      q: "How do the latency numbers compare?",
+      opts: [
+        { name: "Pitch is clearly slower", set: { pd: 1.3, ppi: 1.3 }, why: "Move both pitch sliders together, so pitch gets more push and more brake." },
+        { name: "About the same", say: "<strong>Nothing to change.</strong> Leave the pitch sliders at 1.0." }
+      ]
+    },
+    good: "Pitch and roll curves look alike, and their latency numbers are within a few milliseconds.",
+    stuck: "You may never get pitch as quick as roll, and that’s fine. Pushing the pitch sliders too far just adds noise. Stop around 1.4."
+  },
+  {
+    phase: 3,
+    title: "Raise the Master Multiplier",
+    lead: "The balance is right, so now you find out how strong the tune can go. Start this step on a fresh battery.",
+    todo: [
+      "Fly a wobble test and note the latency number in the Step Resp Tool.",
+      "Raise Master Multiplier by 0.2, save, and fly again.",
+      "Tell the guide below what happened, and repeat."
+    ],
+    pid: {
+      start: { ff: 0, dmax: 0, i: 0.4, d: 1.4, pd: 1.3, ppi: 1.3 },
+      q: "What happened after the last step up?",
+      opts: [
+        { name: "Latency dropped, motors cool", set: { m: 1.2 }, say: "<strong>Master Multiplier.</strong> Go up another step of 0.2, like 1.0 to <b>1.2</b> here. Save and fly the wobble test again." },
+        { name: "Latency barely changed", say: "<strong>Stop here.</strong> The quad has reached what it can do. Going higher only adds noise." },
+        { name: "Hot motors, or the curve got wiggly", set: { m: 0.8 }, say: "<strong>Master Multiplier.</strong> Go back down one step of 0.2 and stop there. That’s your final value." }
+      ]
+    },
+    warn: "Check the motors after every flight in this step. This is where they can get hot.",
+    stuck: "A tired battery makes the quad slower, which can fool you into going too high. That’s why this step needs a fresh pack.",
+    size: {
+      whoop: "Small quads vary a lot. Light, powerful ones can start at 0.8. Ducted cinewhoops are usually under-tuned and can start at 1.0.",
+      micro: "Small quads vary a lot. Light, powerful ones can start at 0.8. Ducted cinewhoops are usually under-tuned and can start at 1.0.",
+      mid: "Start at 1.0. On a very light, powerful build, start at 0.8.",
+      five: "Start at 1.0. On a very light, powerful race quad, start at 0.8.",
+      big: "Start at 1.0, or 1.2 on a heavy lifter. Bigger quads often feel locked in around 1.6."
+    }
+  },
+  {
+    phase: 3,
+    title: "Check the D noise",
+    lead: "A stronger tune also makes noise stronger. This check tells you whether the motors are being asked to do too much.",
+    ptb: "dterm",
+    todo: [
+      "Open your latest wobble log in PIDtoolbox.",
+      "Use the practice screen below to see what to look for."
+    ],
+    good: "The D term line stays under −10 dB.",
+    stuck: "PIDtoolbox can also show filter delay, from its Delay menu. More filtering means more delay, so only add as much as you need.",
+    size: {
+      big: "As a guide for a 7 inch, a D term filter delay of about 1.5 to 1.7 ms and a gyro delay of about 2.2 to 2.4 ms are fine. Bigger quads cope with more delay than small ones."
+    }
+  },
+  {
+    phase: 3,
+    title: "Set the I value",
+    lead: "I keeps the quad holding its angle. It’s forgiving, so a normal value works for most quads.",
+    todo: [
+      "Tell the guide below which case fits you.",
+      "Copy the slider move in Betaflight and save."
+    ],
+    pid: {
+      start: { ff: 0, dmax: 0, i: 0.4, d: 1.4, pd: 1.3, ppi: 1.3, m: 1.4 },
+      q: "Which fits your quad?",
+      opts: [
+        { name: "Just set the normal value", set: { i: 1.0 }, why: "1.0 works on most quads." },
+        { name: "The curve has a slow, long overshoot", set: { i: 0.6 }, why: "Too much I shows up as a slow bulge above the line, not a sharp bump." },
+        { name: "It feels stiff going into turns", set: { i: 0.8 }, why: "A little less I loosens the feel." }
+      ]
+    },
+    good: "The end of the step response curve sits flat on the target line.",
+    stuck: "If the curve sags below the line at the end, I is too low. Around 0.4 is usually the least you can run."
+  },
+  {
+    phase: 3,
+    title: "Add feedforward",
+    lead: "Feedforward makes the quad start moving the moment you move the stick. It’s the last thing to add.",
+    todo: [
+      "Tell the guide below where you are.",
+      "Copy the slider move, save, and fly a short test.",
+      "Touch the motors straight after landing."
+    ],
+    pid: {
+      start: { ff: 0, dmax: 0, i: 1, d: 1.4, pd: 1.3, ppi: 1.3, m: 1.4 },
+      q: "Where are you with feedforward?",
+      opts: [
+        { name: "First try", set: { ff: 0.5 }, why: "Half is a safe start. It takes roughly 6 milliseconds off the delay." },
+        { name: "Motors cool, want it snappier", set: { ff: 1.0 }, why: "This takes roughly 12 milliseconds off the delay." },
+        { name: "Hot motors, or it overshoots", set: { ff: 0.3 }, why: "Too much feedforward shoves the quad past where you stopped, and works the motors hard." }
+      ]
+    },
+    warn: "Feedforward can heat motors fast. If they’re hot, go back down before flying again.",
+    stuck: "Don’t judge feedforward with the step response curve. It can look wrong with feedforward on. Go by feel and by motor heat.",
+    size: {
+      big: "Big motors can’t speed up quickly. Stay near 0.5."
+    }
+  },
+  {
+    phase: 3,
+    title: "Decide on Dynamic Damping",
+    lead: "Dynamic Damping lets D rise only during sharp moves. Most quads don’t need it.",
+    todo: [
+      "If your motors run cool and the quad flies well, leave it at 0.",
+      "Only use it if you needed very high Damping, around 1.6 or more, and the motors run hot.",
+      "In that case, lower Damping and raise Dynamic Damping until D Max shows the D number you found in testing."
+    ],
+    good: "Motors are cool after a normal flight.",
+    stuck: "Leave yaw alone too. There’s no yaw slider for a reason, and pushing yaw hard makes the quad climb during spins."
+  },
+  {
+    phase: 3,
+    title: "Save your tune and go fly",
+    lead: "You’re done. Put your normal settings back and keep a copy of the tune.",
+    todo: [
+      "Switch back to your normal rate profile and your usual Angle Limit.",
+      "Go to the CLI, type <code>diff all</code>, and save it as your tuned file.",
+      "Fly a normal pack and touch the motors when you land.",
+      "Retune if you change props, motors, battery size, or add a camera."
+    ],
+    good: "Cool motors, clean video, and a quad that goes where you point it.",
+    stuck: "If it ever feels worse than stock, load your first backup and start again. Nothing is lost."
+  }
+];
+
+const stage = document.getElementById("stage");
+const backBtn = document.getElementById("back");
+const nextBtn = document.getElementById("next");
+const phasesEl = document.getElementById("phases");
+let current = 0;
+let busy = false;
+let size = loadSize();
+
+function loadSize() {
+  try {
+    const k = localStorage.getItem("tune-size");
+    return SIZES.some(z => z.key === k) ? k : null;
+  } catch (e) { return null; }
+}
+function chooseSize(k) {
+  size = k;
+  try { localStorage.setItem("tune-size", k); } catch (e) {}
+  updateSizebar();
+  go(1);
+}
+function updateSizebar() {
+  const z = SIZES.find(x => x.key === size);
+  document.getElementById("sizebar").hidden = !z;
+  if (z) document.getElementById("sizeLabel").textContent = "Tips are set for your " + z.own + ".";
+}
+const BF_DEFAULT = { rpm: "100", lp1: "on", gyro: "1.0", dterm: "1.0" };
+const BF_GUIDE = [
+  { f: "rpm", say: v => `<strong>Gyro RPM Filter Min Frequency.</strong> Type your own number: the lowest motor noise you wrote down, minus about 30. The practice screen uses <b>${v}</b> as an example.` },
+  { f: "lp1", say: () => `<strong>Gyro Lowpass 1.</strong> Switch it <b>off</b>, but only if your hover graph was quiet above 500 Hz, meaning below about −40 dB. Less filtering means less delay. Not sure? Leave it on.` },
+  { f: "gyro", say: () => `<strong>Gyro Filter Multiplier.</strong> Leave it at <b>1.0</b>. On a quiet quad there’s no reason to add more filtering here.` },
+  { f: "dterm", say: () => `<strong>D Term Filter Multiplier.</strong> Leave it at <b>1.0</b> for now. You’ll come back to it after PID tuning if the D noise is high.` },
+  { f: "save", say: () => `<strong>Save.</strong> Click Save in the bottom right corner. Your changes are lost if you skip this.` }
+];
+function filterMock(s) {
+  if (!s.filt || !s.filt[size]) return "";
+  const num = (v, lab, f, scale, cls) => `<div class="bf-row${f ? " tgt" : ""}${cls ? " " + cls : ""}"${f ? ` data-f="${f}"` : ""}><span class="bf-in"${scale ? ` data-scale="${scale}" data-base="${v}"` : ""}>${f ? BF_DEFAULT[f] : v}</span><span class="bf-lab">${lab}</span></div>`;
+  const sel = (v, lab, cls) => `<div class="bf-row${cls ? " " + cls : ""}"><span class="bf-in sel">${v}</span><span class="bf-lab">${lab}</span></div>`;
+  const tog = (on, lab, f) => `<div class="bf-row${f ? " tgt" : ""}"${f ? ` data-f="${f}"` : ""}><span class="bf-tog${on ? " on" : ""}"></span><span class="bf-lab">${lab}</span></div>`;
+  const sub = t => `<div class="bf-sub">${t}</div>`;
+  const slide = (f, lab) => `<div class="bf-slide tgt" data-f="${f}"><span class="bf-lab">${lab}:</span><span class="bf-track"><span class="bf-thumb"></span></span><span class="bf-in">1.0</span></div>`;
+  return `
+  <div class="bf">
+    <div class="bf-guide">
+      <p class="bf-step"></p>
+      <p class="bf-say" aria-live="polite"></p>
+      <div class="bf-ctl">
+        <button type="button" class="btn" data-act="prev">Previous change</button>
+        <button type="button" class="btn primary" data-act="next">Show next change</button>
+        <button type="button" class="btn" data-act="play">Play all</button>
+      </div>
+    </div>
+    <p class="bf-note">This is a practice copy of the Filter Settings screen. Nothing here changes your quad.</p>
+    <div class="bf-screen">
+      <div class="bf-tabs"><span>PID Profile Settings</span><span>Rateprofile Settings</span><span class="on">Filter Settings</span></div>
+      <div class="bf-sliders">
+        ${slide("gyro", "Gyro Filter Multiplier")}
+        ${slide("dterm", "D Term Filter Multiplier")}
+      </div>
+      <div class="bf-cols">
+        <div class="bf-box">
+          <div class="bf-title">Profile independent Filter Settings</div>
+          ${sub("Gyro Lowpass Filters")}
+          ${tog(true, "Gyro Lowpass 1", "lp1")}
+          ${sel("DYNAMIC", "Mode", "lp1dep")}
+          ${num(250, "Gyro Lowpass 1 Dynamic Min Cutoff Frequency [Hz]", null, "gyro", "lp1dep")}
+          ${num(500, "Gyro Lowpass 1 Dynamic Max Cutoff Frequency [Hz]", null, "gyro", "lp1dep")}
+          ${sel("PT1", "Gyro Lowpass 1 Filter Type", "lp1dep")}
+          ${tog(true, "Gyro Lowpass 2")}
+          ${num(500, "Gyro Lowpass 2 Cutoff Frequency [Hz]", null, "gyro")}
+          ${sel("PT1", "Gyro Lowpass 2 Filter Type")}
+          ${sub("Gyro Notch Filters")}
+          ${tog(false, "Gyro Notch Filter 1")}
+          ${tog(false, "Gyro Notch Filter 2")}
+          ${sub("Gyro RPM Filter")}
+          ${tog(true, "Gyro RPM Filter")}
+          ${num(3, "Gyro RPM Filter Harmonics Number")}
+          ${num(100, "Gyro RPM Filter Min Frequency [Hz]", "rpm")}
+          ${sub("Dynamic Notch Filter")}
+          ${tog(true, "Dynamic Notch Filter")}
+          ${num(1, "Notch Count")}
+          ${num(500, "Q factor")}
+          ${num(100, "Min Frequency [Hz]")}
+          ${num(600, "Max Frequency [Hz]")}
+        </div>
+        <div class="bf-box">
+          <div class="bf-title">Profile dependent Filter Settings</div>
+          ${sub("D Term Lowpass Filters")}
+          ${tog(true, "D Term Lowpass 1")}
+          ${sel("DYNAMIC", "Mode")}
+          ${num(75, "D Term Lowpass 1 Dynamic Min Cutoff Frequency [Hz]", null, "dterm")}
+          ${num(150, "D Term Lowpass 1 Dynamic Max Cutoff Frequency [Hz]", null, "dterm")}
+          ${num(5, "D Term Lowpass 1 Dynamic Curve Expo")}
+          ${sel("PT1", "D Term Lowpass 1 Filter Type")}
+          ${tog(true, "D Term Lowpass 2")}
+          ${num(150, "D Term Lowpass 2 Cutoff Frequency [Hz]", null, "dterm")}
+          ${sel("PT1", "D Term Lowpass 2 Filter Type")}
+          ${sub("D Term Notch Filter")}
+          ${tog(false, "D Term Notch Filter")}
+          ${sub("Yaw Lowpass Filter")}
+          ${num(100, "Yaw Lowpass Cutoff Frequency [Hz]")}
+        </div>
+      </div>
+      <div class="bf-foot"><span class="bf-btn">Refresh</span><span class="bf-btn tgt" data-f="save">Save</span></div>
+      <svg class="bf-cursor" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 2v17l4.6-4.2 3 7 2.8-1.2-3-6.8H18z" fill="#fff" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/></svg>
+    </div>
+  </div>`;
+}
+function wireMock(el, s) {
+  const root = el.querySelector(".bf");
+  if (!root) return;
+  const want = s.filt[size];
+  const screen = root.querySelector(".bf-screen");
+  const cursor = root.querySelector(".bf-cursor");
+  const stepEl = root.querySelector(".bf-step");
+  const say = root.querySelector(".bf-say");
+  const prevB = root.querySelector('[data-act="prev"]');
+  const nextB = root.querySelector('[data-act="next"]');
+  const playB = root.querySelector('[data-act="play"]');
+  const last = BF_GUIDE.length - 1;
+  const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let idx = 0, timer = null, play = null;
+
+  const tgt = f => root.querySelector(`[data-f="${f}"]`);
+  const setVal = (f, v) => {
+    const n = tgt(f);
+    if (f === "lp1") {
+      n.querySelector(".bf-tog").classList.toggle("on", v === "on");
+      root.querySelectorAll(".lp1dep").forEach(x => x.classList.toggle("off", v !== "on"));
+      return;
+    }
+    n.querySelector(".bf-in").textContent = v;
+    if (f === "gyro" || f === "dterm") {
+      n.querySelector(".bf-thumb").style.left = (parseFloat(v) / 2 * 100) + "%";
+      root.querySelectorAll(`[data-scale="${f}"]`).forEach(x => { x.textContent = Math.round(x.dataset.base * parseFloat(v)); });
+    }
+  };
+  const aim = () => {
+    const n = tgt(BF_GUIDE[idx].f);
+    let c = n.querySelector(".bf-thumb") || n.querySelector(".bf-tog") || n.querySelector(".bf-in") || n;
+    let x = c.offsetWidth / 2, y = c.offsetHeight / 2;
+    while (c && c !== screen) { x += c.offsetLeft; y += c.offsetTop; c = c.offsetParent; }
+    cursor.style.transform = `translate(${x}px, ${y}px)`;
+  };
+  const show = (i, scroll) => {
+    clearTimeout(timer);
+    idx = i;
+    BF_GUIDE.forEach((g, j) => {
+      const n = tgt(g.f);
+      n.classList.toggle("now", j === i);
+      n.classList.toggle("done", j < i);
+      n.classList.remove("flash");
+      if (g.f !== "save") setVal(g.f, j < i ? want[g.f] : BF_DEFAULT[g.f]);
+    });
+    const g = BF_GUIDE[i];
+    const n = tgt(g.f);
+    stepEl.textContent = `Change ${i + 1} of ${BF_GUIDE.length}`;
+    say.innerHTML = g.say(want[g.f]);
+    if (g.f !== "save" && want[g.f] !== BF_DEFAULT[g.f]) {
+      timer = setTimeout(() => { setVal(g.f, want[g.f]); n.classList.add("flash"); aim(); }, calm ? 0 : 900);
+    }
+    prevB.disabled = i === 0;
+    nextB.disabled = i === last;
+    aim();
+    if (scroll) {
+      const r = n.getBoundingClientRect();
+      if (r.top < 220 || r.bottom > window.innerHeight - 24) n.scrollIntoView({ block: "center", behavior: calm ? "auto" : "smooth" });
+    }
+  };
+  const stop = () => { clearInterval(play); play = null; playB.textContent = "Play all"; };
+
+  prevB.addEventListener("click", () => { stop(); show(idx - 1, true); });
+  nextB.addEventListener("click", () => { stop(); show(idx + 1, true); });
+  playB.addEventListener("click", () => {
+    if (play) return stop();
+    if (idx === last) show(0, true);
+    playB.textContent = "Pause";
+    play = setInterval(() => {
+      if (!root.isConnected || idx === last) return stop();
+      show(idx + 1, true);
+    }, 3200);
+  });
+  window.addEventListener("resize", () => { if (root.isConnected) aim(); });
+  show(0, false);
+  requestAnimationFrame(aim);
+}
+
+const SPX = f => 44 + f / 1000 * 260;
+const SPY = db => 12 + Math.min(60, Math.max(0, -db)) / 60 * 138;
+function specSVG(o) {
+  const floorAt = f => o.floor - 16 * (f / 1000);
+  let d = "", fl = "";
+  for (let f = 0; f <= 1000; f += 4) {
+    let p = Math.pow(10, floorAt(f) / 10) + Math.pow(10, (-6 - f * 1.6) / 10);
+    o.peaks.forEach(k => { p += Math.pow(10, (k.db - 12 * Math.pow((f - k.f) / k.w, 2)) / 10); });
+    d += (f ? "L" : "M") + SPX(f).toFixed(1) + " " + SPY(10 * Math.log10(p)).toFixed(1);
+    if (f >= 60) fl += (fl ? "L" : "M") + SPX(f).toFixed(1) + " " + (SPY(floorAt(f)) + 5).toFixed(1);
+  }
+  const grid = [-20, -40].map(v => `<path d="M44 ${SPY(v)}H304" stroke="#3a3a3a"/>`).join("");
+  const ylab = [0, -20, -40, -60].map(v => `<text class="ptb-t" x="40" y="${SPY(v) + 3}" text-anchor="end">${v === 0 ? "0" : "−" + (-v)}</text>`).join("");
+  const motors = (o.motors || []).map(f => `<path d="M${SPX(f) - 4} 13h8l-4 7z" fill="#ff7a59"/>`).join("");
+  const mz = (o.motors || []).map((f, i) => `<rect class="hz" data-h="motor" x="${SPX(f) - 13}" y="${SPY(o.peaks[i].db) - 7}" width="26" height="${150 - SPY(o.peaks[i].db) + 5}"/>`).join("");
+  return `<svg viewBox="0 0 320 180" role="img" aria-label="${o.alt}">
+    <rect x="44" y="12" width="260" height="138" fill="#000"/>
+    ${grid}
+    ${o.limit ? `<path d="M44 ${SPY(-10)}H304" stroke="#ff7a59" stroke-dasharray="5 4"/><text class="ptb-t" x="300" y="${SPY(-10) - 4}" text-anchor="end" style="fill:#ff7a59">−10 dB limit</text>` : ""}
+    <path d="${d}" fill="none" stroke="${o.color || "#5cd0ff"}" stroke-width="2" stroke-linejoin="round"/>
+    ${motors}
+    <path d="M44 12V150H304" fill="none" stroke="#ddd"/>
+    ${ylab}
+    <text class="ptb-t" x="10" y="10">dB</text>
+    <text class="ptb-t" x="44" y="162" text-anchor="middle">0</text>
+    <text class="ptb-t" x="174" y="162" text-anchor="middle">500</text>
+    <text class="ptb-t" x="304" y="162" text-anchor="end">1000</text>
+    <text class="ptb-t" x="174" y="176" text-anchor="middle">Frequency (Hz)</text>
+    ${o.foot ? `<circle cx="${SPX(o.foot)}" cy="${SPY(floorAt(o.foot)) - 1}" r="3.5" fill="#ffbb00"/><text class="ptb-t" x="${SPX(o.foot) - 6}" y="${SPY(floorAt(o.foot)) + 16}" text-anchor="middle" style="fill:#ffbb00">about ${o.foot} Hz</text><circle class="hz" data-h="foot" cx="${SPX(o.foot)}" cy="${SPY(floorAt(o.foot)) - 1}" r="11"/>` : ""}
+    <rect class="hz" data-h="move" x="45" y="14" width="13" height="135"/>
+    ${mz}
+    <path class="hz" data-h="floor" d="${fl}"/>
+    <rect class="hz" data-h="scale" x="14" y="6" width="29" height="150"/>
+    ${o.extra ? `<rect class="hz" data-h="extra" x="${SPX(o.extra) - 12}" y="24" width="24" height="126"/>` : ""}
+    ${o.limit ? `<rect class="hz" data-h="limit" x="46" y="${SPY(-10) - 6}" width="256" height="12"/>` : ""}
+  </svg>`;
+}
+function stepSVG(o) {
+  const Y = v => 150 - v * 69;
+  const paths = o.curves.map((c, n) => {
+    const wd = c.z < 1 ? c.w * Math.sqrt(1 - c.z * c.z) : 0;
+    let d = "";
+    for (let t = 0; t <= 500; t += 4) {
+      const tt = Math.max(0, t - 8);
+      let y = c.z >= 1
+        ? 1 - Math.exp(-c.w * tt) * (1 + c.w * tt)
+        : 1 - Math.exp(-c.z * c.w * tt) * (Math.cos(wd * tt) + c.z / Math.sqrt(1 - c.z * c.z) * Math.sin(wd * tt));
+      if (o.sag) y *= 1 - o.sag * (1 - Math.exp(-tt / 150));
+      if (o.noise && tt > 0) y += o.noise * (Math.sin(tt * 0.21 + n * 2) + Math.sin(tt * 0.083 + n)) / 2;
+      d += (t ? "L" : "M") + (44 + t / 500 * 256).toFixed(1) + " " + Y(y).toFixed(1);
+    }
+    return `<path d="${d}" fill="none" stroke="${c.color}" stroke-width="2" stroke-linejoin="round"/>`;
+  }).join("");
+  const legend = o.curves.map((c, n) => `<text class="ptb-t" x="294" y="${28 + n * 12}" text-anchor="end" style="fill:${c.color}">${c.label}</text>`).join("");
+  return `<svg viewBox="0 0 320 180" role="img" aria-label="${o.alt}">
+    <rect x="44" y="12" width="256" height="138" fill="#000"/>
+    <path d="M44 81H300" stroke="#9a9a9a" stroke-dasharray="5 4"/>
+    ${paths}
+    <path d="M44 12V150H300" fill="none" stroke="#ddd"/>
+    <text class="ptb-t" x="44" y="162" text-anchor="middle">0</text>
+    <text class="ptb-t" x="172" y="162" text-anchor="middle">250</text>
+    <text class="ptb-t" x="300" y="162" text-anchor="end">500</text>
+    <text class="ptb-t" x="172" y="176" text-anchor="middle">time (ms)</text>
+    <text class="ptb-t" x="40" y="153" text-anchor="end">0</text>
+    <text class="ptb-t" x="40" y="84" text-anchor="end">1</text>
+    <text class="ptb-t" x="40" y="18" text-anchor="end">2</text>
+    ${legend}
+    <rect class="hz" data-h="target" x="46" y="75" width="252" height="12"/>
+    <rect class="hz" data-h="peak" x="54" y="38" width="74" height="58"/>
+    <rect class="hz" data-h="tail" x="170" y="64" width="128" height="40"/>
+    <rect class="hz" data-h="legend" x="236" y="17" width="62" height="${o.curves.length * 12 + 4}"/>
+  </svg>`;
+}
+const MOTOR_PEAKS = [{ f: 150, db: -12, w: 16 }, { f: 300, db: -24, w: 18 }, { f: 450, db: -33, w: 20 }];
+const SWEEP_COL = ["#ff5c5c", "#ff9d3c", "#ffe14d", "#6fdc6f", "#5cd0ff"];
+const sweep = zs => zs.map((z, n) => ({ z, w: 0.065, color: SWEEP_COL[n], label: "Damping " + (0.6 + n * 0.2).toFixed(1) }));
+const PTB = {
+  spec: {
+    tool: "spec",
+    tour: [
+      { h: "btn", t: "<strong>Open the tool.</strong> Click Spectral Analyzer, choose “Gyro prefilt”, then Run. That shows the gyro before any filtering." },
+      { h: "move", t: "<strong>The hump on the far left</strong> is the quad actually moving. It isn’t noise, so ignore it." },
+      { h: "motor", t: "<strong>The tall peaks are your motors.</strong> The first is the motor speed. The smaller ones to the right are its echoes. They’re normal, and the RPM filter removes them." },
+      { h: "floor", t: "<strong>The floor</strong> is the line the peaks stand on. This is the part you’re judging. Lower is quieter." },
+      { h: "scale", t: "<strong>Read the floor on the left scale.</strong> Below −40 dB is great. Around −30 is fine. Above about −25 needs fixing." },
+      { h: "opts", t: "<strong>Now compare.</strong> Pick the example below that looks most like your own graph." }
+    ],
+    opts: [
+      { key: "clean", name: "Peaks on a low floor", floor: -44, peaks: MOTOR_PEAKS, motors: [150, 300, 450], alt: "Three motor peaks on a low noise floor",
+        mean: "A healthy quad. The only noise is from the motors, and the RPM filter handles that.",
+        todo: "Carry on to the next step." },
+      { key: "high", name: "The floor is high", floor: -23, peaks: MOTOR_PEAKS, motors: [150, 300, 450], alt: "Motor peaks on a high noise floor",
+        mean: "There’s noise at every frequency. That usually points to electrical noise or something worn.",
+        todo: "Check the capacitor is fitted, the props and bearings are good, and the flight controller sits on its rubber mounts. Raising the ESC PWM frequency to 48 kHz can also help. Then fly the hover test again." },
+      { key: "extra", name: "An extra peak", floor: -44, peaks: MOTOR_PEAKS.concat([{ f: 232, db: -17, w: 12 }]), motors: [150, 300, 450], extra: 232, alt: "Motor peaks plus one extra peak between them",
+        mean: "A peak that doesn’t sit under a motor marker is something on the quad shaking by itself.",
+        todo: "Look for a loose camera, antenna, arm or stack screw, then fly the hover test again. If it won’t go away, the Dynamic Notch Filter will catch it." }
+    ],
+    draw: o => `<figure><div class="ptb-ttl">Gyro prefilt, roll</div>${specSVG(o)}</figure>`
+  },
+  low: {
+    tool: "spec",
+    tour: [
+      { h: "motor", t: "<strong>Find the first motor peak.</strong> It’s the tall one furthest to the left, after the hump at the very edge." },
+      { h: "foot", t: "<strong>Click its left foot,</strong> where the line starts to climb. PIDtoolbox shows the frequency. In this example it’s about 122 Hz. Write yours down." }
+    ],
+    base: { floor: -44, peaks: MOTOR_PEAKS, motors: [150, 300, 450], foot: 122, alt: "Noise graph with the left foot of the first motor peak marked at about 122 hertz" },
+    draw: o => `<figure><div class="ptb-ttl">Gyro prefilt, roll</div>${specSVG(o)}</figure>`
+  },
+  dterm: {
+    tool: "spec",
+    tour: [
+      { h: "btn", t: "<strong>Open the tool.</strong> Click Spectral Analyzer, choose “Dterm”, then Run." },
+      { h: "limit", t: "<strong>The line to watch is −10 dB.</strong> During wobble tests, the D term noise should stay under it." },
+      { h: "opts", t: "<strong>Now compare.</strong> Pick the example below that looks most like yours." }
+    ],
+    opts: [
+      { key: "under", name: "Stays under the line", floor: -40, color: "#ffd45c", limit: true, peaks: [{ f: 170, db: -17, w: 130 }, { f: 60, db: -21, w: 50 }], alt: "D term noise staying below minus 10 decibels",
+        mean: "The D noise is under control.",
+        todo: "Nothing to change. Carry on." },
+      { key: "over", name: "Goes over the line", floor: -34, color: "#ffd45c", limit: true, peaks: [{ f: 170, db: -5, w: 130 }, { f: 60, db: -12, w: 50 }], alt: "D term noise rising above minus 10 decibels",
+        mean: "The motors are being fed too much D noise. That’s what makes them hot.",
+        todo: "On Filter Settings, lower D Term Filter Multiplier to about 0.8 and test again. If it’s still over, take Master Multiplier down one step." }
+    ],
+    draw: o => `<figure><div class="ptb-ttl">Dterm, roll</div>${specSVG(o)}</figure>`
+  },
+  sweep: {
+    tool: "step",
+    tour: [
+      { h: "btn", t: "<strong>Open the tool.</strong> Click Step Resp Tool, tick your five wobble logs, then Run." },
+      { h: "target", t: "<strong>The dashed line at 1</strong> is where the quad should end up after you move the stick." },
+      { h: "legend", t: "<strong>Each colour is one flight.</strong> PIDtoolbox lists the PID numbers for each, so you can tell which Damping value is which." },
+      { h: "peak", t: "<strong>Look at the bump.</strong> The lowest Damping makes the tallest bump: too little brake, so the quad shoots past. Each step up shrinks it." },
+      { h: "opts", t: "<strong>Choose the lowest Damping where the bump is nearly gone.</strong> A tiny overshoot is fine. Then pick the example below that looks like yours." }
+    ],
+    opts: [
+      { key: "ok", name: "The bump shrinks, then goes", curves: sweep([.3, .42, .55, .68, .8]), alt: "Five curves, each with a smaller overshoot than the last",
+        mean: "This is the normal result.",
+        todo: "Set Damping to the lowest value where the bump has nearly gone. In this example that’s 1.2 or 1.4. Then set Drift – Wobble to 0.2 and save." },
+      { key: "bumpy", name: "Still bumpy at 1.4", curves: sweep([.2, .26, .32, .38, .45]), alt: "Five curves that all overshoot",
+        mean: "This quad needs more brake than most.",
+        todo: "Fly two more flights with Damping at 1.6 and 1.8, checking the motors each time. If they get hot, stop at the last cool value." },
+      { key: "sag", name: "The lines sag at the end", curves: sweep([.3, .42, .55, .68, .8]), sag: .16, alt: "Five curves that drift below the target line",
+        mean: "That droop is because I is switched off, not because of P or D. Judge the bump at the start and ignore the droop.",
+        todo: "Pick your Damping value as normal. Then set Drift – Wobble to 0.4, fly one more wobble test, and the lines should end flat." },
+      { key: "messy", name: "Too wiggly to tell", curves: sweep([.3, .42, .55, .68, .8]), noise: .09, alt: "Five noisy, wiggly curves",
+        mean: "Noise in the log is hiding the bump.",
+        todo: "Go back to the hover test and check the noise floor. Also make sure each wobble flight had at least 20 sharp moves per axis." }
+    ],
+    draw: o => `<figure><div class="ptb-ttl">Step response, roll</div>${stepSVG(o)}</figure>`
+  }
+};
+function ptbMock(kind) {
+  const C = PTB[kind];
+  return `
+  <div class="ptb" data-kind="${kind}">
+    <div class="bf-guide">
+      <p class="bf-step"></p>
+      <p class="bf-say" aria-live="polite"></p>
+      <div class="bf-ctl">
+        <button type="button" class="btn" data-act="prev">Previous</button>
+        <button type="button" class="btn primary" data-act="next">Show next</button>
+      </div>
+    </div>
+    <p class="bf-note">This is a practice copy of PIDtoolbox, drawn with made-up data.</p>
+    <div class="ptb-screen">
+      <div class="ptb-bar"><span class="ptb-btn">Open file</span><span class="ptb-btn"${C.tool === "spec" ? ' data-h="btn"' : ""}>Spectral Analyzer</span><span class="ptb-btn"${C.tool === "step" ? ' data-h="btn"' : ""}>Step Resp Tool</span><span class="ptb-btn" data-h="btn">Run</span></div>
+      <div class="ptb-plots"></div>
+    </div>
+    ${C.opts ? `<p class="ptb-q">Which one looks most like yours?</p>
+    <div class="ptb-opts" data-h="opts">${C.opts.map(o => `<button type="button" class="ptb-opt" data-o="${o.key}" aria-pressed="false">${o.name}</button>`).join("")}</div>
+    <p class="note ptb-verdict" aria-live="polite"></p>` : ""}
+  </div>`;
+}
+function wirePtb(el) {
+  const root = el.querySelector(".ptb");
+  if (!root) return;
+  const C = PTB[root.dataset.kind];
+  const plots = root.querySelector(".ptb-plots");
+  const stepEl = root.querySelector(".bf-step");
+  const say = root.querySelector(".bf-say");
+  const prevB = root.querySelector('[data-act="prev"]');
+  const nextB = root.querySelector('[data-act="next"]');
+  const verdict = root.querySelector(".ptb-verdict");
+  const optBtns = [...root.querySelectorAll(".ptb-opt")];
+  let i = 0;
+  const mark = () => {
+    root.querySelectorAll(".hl").forEach(n => n.classList.remove("hl"));
+    root.querySelectorAll(`[data-h="${C.tour[i].h}"]`).forEach(n => n.classList.add("hl"));
+  };
+  const draw = o => {
+    plots.innerHTML = C.draw(o);
+    if (C.opts) {
+      optBtns.forEach(b => b.setAttribute("aria-pressed", String(b.dataset.o === o.key)));
+      verdict.innerHTML = `<strong>What it means:</strong> ${o.mean}<br><strong>What to do:</strong> ${o.todo}`;
+    }
+    mark();
+  };
+  const show = n => {
+    i = n;
+    stepEl.textContent = `Part ${i + 1} of ${C.tour.length}`;
+    say.innerHTML = C.tour[i].t;
+    prevB.disabled = i === 0;
+    nextB.disabled = i === C.tour.length - 1;
+    mark();
+  };
+  prevB.addEventListener("click", () => show(i - 1));
+  nextB.addEventListener("click", () => show(i + 1));
+  optBtns.forEach(b => b.addEventListener("click", () => draw(C.opts.find(o => o.key === b.dataset.o))));
+  draw(C.opts ? C.opts[0] : C.base);
+  show(0);
+}
+
+const PID_SL = [
+  ["d", "Damping", "D Gains"],
+  ["pi", "Tracking", "P & I Gains"],
+  ["ff", "Stick Response", "FF Gains"],
+  ["dmax", "Dynamic Damping", "D Max"],
+  ["i", "Drift – Wobble", "I Gains"],
+  ["pd", "Pitch Damping", "Pitch:Roll D"],
+  ["ppi", "Pitch Tracking", "Pitch:Roll P, I & FF"],
+  ["m", "Master Multiplier", "All Gains"]
+];
+function pidNums(g) {
+  const r = Math.round;
+  return [
+    ["ROLL", "ax-r", r(45 * g.pi * g.m), r(80 * g.pi * g.i * g.m), r((30 + 10 * g.dmax) * g.d * g.m), r(30 * g.d * g.m), r(120 * g.ff * g.m)],
+    ["PITCH", "ax-p", r(47 * g.pi * g.ppi * g.m), r(84 * g.pi * g.i * g.ppi * g.m), r((34 + 12 * g.dmax) * g.d * g.pd * g.m), r(34 * g.d * g.pd * g.m), r(125 * g.ff * g.ppi * g.m)],
+    ["YAW", "ax-y", r(45 * g.pi * g.m), r(80 * g.pi * g.i * g.m), 0, 0, r(120 * g.ff * g.m)]
+  ];
+}
+function pidMock(s) {
+  const guide = s.pid.seq
+    ? `<p class="bf-step"></p>
+      <p class="bf-say" aria-live="polite"></p>
+      <div class="bf-ctl">
+        <button type="button" class="btn" data-act="prev">Previous change</button>
+        <button type="button" class="btn primary" data-act="next">Show next change</button>
+      </div>`
+    : `<p class="ptb-q">${s.pid.q}</p>
+      <div class="ptb-opts">${s.pid.opts.map((o, i) => `<button type="button" class="ptb-opt" data-i="${i}" aria-pressed="false">${o.name}</button>`).join("")}</div>
+      <p class="bf-say" aria-live="polite">Pick one and the practice screen shows you what to do.</p>`;
+  return `
+  <div class="bf pidm">
+    <div class="bf-guide">${guide}</div>
+    <p class="bf-note">This is a practice copy of the PID Tuning screen. The slider positions are examples, so yours may differ.</p>
+    <div class="bf-screen">
+      <div class="bf-tabs"><span class="on">PID Profile Settings</span><span>Rateprofile Settings</span><span>Filter Settings</span></div>
+      <div class="bf-expert"><span class="bf-tog on"></span>Enable Expert Mode</div>
+      <div class="bf-scroll">
+        <table class="bf-pid">
+          <thead><tr><th></th><th>Proportional</th><th>Integral</th><th>D Max</th><th>Derivative</th><th>Feedforward</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="bf-sliders pid">
+        ${PID_SL.map(([k, n, sub]) => `<div class="bf-slide tgt" data-f="${k}"><span class="bf-lab">${n}:<small>${sub}</small></span><span class="bf-track"><span class="bf-thumb"></span></span><span class="bf-in">1.0</span></div>`).join("")}
+      </div>
+      <div class="bf-foot"><span class="bf-btn">Refresh</span><span class="bf-btn tgt" data-f="save">Save</span></div>
+      <svg class="bf-cursor" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 2v17l4.6-4.2 3 7 2.8-1.2-3-6.8H18z" fill="#fff" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/></svg>
+    </div>
+  </div>`;
+}
+function wirePid(el, s) {
+  const root = el.querySelector(".pidm");
+  if (!root) return;
+  const P = s.pid;
+  const start = Object.assign({ d: 1, pi: 1, ff: 1, dmax: 1, i: 1, pd: 1, ppi: 1, m: 1 }, P.start || {});
+  const screen = root.querySelector(".bf-screen");
+  const cursor = root.querySelector(".bf-cursor");
+  const say = root.querySelector(".bf-say");
+  const body = root.querySelector(".bf-pid tbody");
+  const save = root.querySelector('[data-f="save"]');
+  const rowOf = k => root.querySelector(`[data-f="${k}"]`);
+  const nameOf = k => PID_SL.find(x => x[0] === k)[1];
+  const fmt = v => v.toFixed(2).replace(/0$/, "");
+  let g, timers = [];
+
+  const paint = flash => {
+    const old = [...body.querySelectorAll(".bf-in")].map(n => n.textContent);
+    let k = 0;
+    body.innerHTML = pidNums(g).map(r => `<tr class="${r[1]}"><th scope="row">${r[0]}</th>${r.slice(2).map(v => `<td><span class="bf-in${flash && old[k++] !== String(v) ? " flash" : ""}">${v}</span></td>`).join("")}</tr>`).join("");
+    PID_SL.forEach(([key]) => {
+      const n = rowOf(key);
+      n.querySelector(".bf-thumb").style.left = (g[key] / 2 * 100) + "%";
+      n.querySelector(".bf-in").textContent = fmt(g[key]);
+    });
+  };
+  const aim = c => {
+    let x = c.offsetWidth / 2, y = c.offsetHeight / 2;
+    while (c && c !== screen) { x += c.offsetLeft; y += c.offsetTop; c = c.offsetParent; }
+    cursor.style.opacity = 1;
+    cursor.style.transform = `translate(${x}px, ${y}px)`;
+  };
+  const later = (fn, ms) => timers.push(setTimeout(fn, ms));
+  const reset = () => {
+    timers.forEach(clearTimeout);
+    timers = [];
+    g = Object.assign({}, start);
+    root.querySelectorAll(".now, .done, .flash").forEach(n => n.classList.remove("now", "done", "flash"));
+    cursor.style.opacity = 0;
+  };
+  const pressSave = () => { save.classList.add("now"); aim(save); };
+  const run = (moves, thenSave) => {
+    const stepTo = j => {
+      if (j >= moves.length) { if (thenSave) pressSave(); return; }
+      const [k, v] = moves[j];
+      const row = rowOf(k);
+      const thumb = row.querySelector(".bf-thumb");
+      row.classList.add("now");
+      aim(thumb);
+      later(() => {
+        g[k] = v;
+        paint(true);
+        row.classList.add("flash");
+        aim(thumb);
+        later(() => {
+          row.classList.remove("now", "flash");
+          row.classList.add("done");
+          stepTo(j + 1);
+        }, moves.length > 1 || thenSave ? 1300 : 0);
+      }, 850);
+    };
+    stepTo(0);
+  };
+
+  if (P.seq) {
+    const stepEl = root.querySelector(".bf-step");
+    const prevB = root.querySelector('[data-act="prev"]');
+    const nextB = root.querySelector('[data-act="next"]');
+    let idx = 0;
+    const show = i => {
+      idx = i;
+      reset();
+      P.seq.slice(0, i).forEach(it => {
+        if (!it.set) return;
+        Object.assign(g, it.set);
+        Object.keys(it.set).forEach(k => rowOf(k).classList.add("done"));
+      });
+      paint(false);
+      const it = P.seq[i];
+      stepEl.textContent = `Change ${i + 1} of ${P.seq.length}`;
+      if (it.save) {
+        say.innerHTML = "<strong>Save.</strong> Click Save in the bottom right corner.";
+        pressSave();
+      } else {
+        const [k, v] = Object.entries(it.set)[0];
+        say.innerHTML = `<strong>${nameOf(k)}.</strong> Drag it to <b>${fmt(v)}</b>. ${it.why}`;
+        run(Object.entries(it.set), false);
+      }
+      prevB.disabled = i === 0;
+      nextB.disabled = i === P.seq.length - 1;
+    };
+    prevB.addEventListener("click", () => show(idx - 1));
+    nextB.addEventListener("click", () => show(idx + 1));
+    show(0);
+    return;
+  }
+
+  const optBtns = [...root.querySelectorAll(".ptb-opt")];
+  const pick = o => {
+    reset();
+    paint(false);
+    optBtns.forEach((b, i) => b.setAttribute("aria-pressed", String(P.opts[i] === o)));
+    if (!o) return;
+    const moves = o.set ? Object.entries(o.set) : [];
+    say.innerHTML = o.say || (moves.map(([k, v]) => `Drag <strong>${nameOf(k)}</strong> to <b>${fmt(v)}</b>.`).join(" ") + ` ${o.why} Then click Save.`);
+    if (moves.length) run(moves, true);
+  };
+  optBtns.forEach((b, i) => b.addEventListener("click", () => pick(P.opts[i])));
+  pick(null);
+}
+const QUAD_SCALE = { whoop: 0.5, micro: 0.62, mid: 0.74, five: 0.87, big: 1 };
+function quadIcon(key) {
+  const k = QUAD_SCALE[key];
+  const L = 24 * k;
+  const R = L * 0.8;
+  const bw = 6 + 8 * k, bh = 10 + 16 * k;
+  const spots = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([a, b]) => [50 + a * L, 50 + b * L]);
+  return `<svg viewBox="0 0 100 100" aria-hidden="true">
+    <path d="M${50 - L} ${50 - L}L${50 + L} ${50 + L}M${50 + L} ${50 - L}L${50 - L} ${50 + L}" stroke="currentColor" stroke-width="${2 + 3 * k}" stroke-linecap="round"/>
+    ${spots.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="${R}" fill="var(--signal)" fill-opacity=".4" stroke="currentColor" stroke-width="${key === "whoop" ? 3 : 1.2}"/><circle cx="${x}" cy="${y}" r="${1.5 + 1.5 * k}" fill="currentColor"/>`).join("")}
+    <rect x="${50 - bw / 2}" y="${50 - bh / 2}" width="${bw}" height="${bh}" rx="3" fill="currentColor"/>
+    <circle cx="50" cy="${50 - bh / 2 + 3}" r="1.8" fill="var(--signal)"/>
+  </svg>`;
+}
+function sizeNote(s) {
+  const z = SIZES.find(x => x.key === size);
+  if (!z || !s.size || !s.size[size]) return "";
+  return `<p class="note size"><strong>For your ${z.own}:</strong> ${s.size[size]}</p>`;
+}
+
+function saved() {
+  try {
+    const n = parseInt(localStorage.getItem("tune-step"), 10);
+    return size && Number.isInteger(n) && n >= 0 && n < STEPS.length ? n : 0;
+  } catch (e) { return 0; }
+}
+function remember(n) {
+  try { localStorage.setItem("tune-step", String(n)); } catch (e) {}
+}
+
+function buildPhases() {
+  PHASES.forEach((name, p) => {
+    const li = document.createElement("li");
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "phase-btn";
+    b.innerHTML = `<span class="bar"><span class="fill"></span></span><span class="name">${name}</span>`;
+    b.addEventListener("click", () => go(STEPS.findIndex(s => s.phase === p)));
+    li.appendChild(b);
+    phasesEl.appendChild(li);
+  });
+}
+
+function updateChrome() {
+  const step = STEPS[current];
+  [...phasesEl.querySelectorAll(".phase-btn")].forEach((b, p) => {
+    const idx = STEPS.map((s, i) => s.phase === p ? i : -1).filter(i => i >= 0);
+    const done = idx.filter(i => i <= current).length;
+    b.querySelector(".fill").style.width = (done / idx.length * 100) + "%";
+    b.setAttribute("aria-current", String(step.phase === p));
+  });
+  backBtn.disabled = current === 0;
+  document.body.classList.toggle("wide", !!STEPS[current].mock);
+  nextBtn.disabled = current === 0 && !size;
+  nextBtn.textContent = current === STEPS.length - 1 ? "Start over" : "Next step";
+}
+
+function cardFor(i) {
+  const s = STEPS[i];
+  const el = document.createElement("article");
+  el.className = "card";
+  if (s.pick) {
+    el.innerHTML = `
+    <p class="count"><span>Before you start</span></p>
+    <h2>What size props does your quad run?</h2>
+    <p class="lead">The steps are the same for every quad. The tips and numbers change with size. You can change this later.</p>
+    <div class="picks">${SIZES.map(z => `<button type="button" class="pick" data-size="${z.key}" aria-pressed="${z.key === size}"><span class="pick-ico">${quadIcon(z.key)}</span><span class="pick-txt"><b>${z.name}</b><small>${z.desc}</small></span><span class="pick-go" aria-hidden="true"></span></button>`).join("")}</div>`;
+    el.querySelectorAll(".pick").forEach(b => b.addEventListener("click", () => chooseSize(b.dataset.size)));
+    return el;
+  }
+  el.innerHTML = `
+    <p class="count"><b>${i}</b><span>of ${STEPS.length - 1}, ${PHASES[s.phase].toLowerCase()}</span></p>
+    <h2>${s.title}</h2>
+    <p class="lead">${s.lead}</p>
+    <ul class="todo">${s.todo.map(t => `<li>${t}</li>`).join("")}</ul>
+    ${s.mock ? filterMock(s) : ""}${s.ptb ? ptbMock(s.ptb) : ""}${s.pid ? pidMock(s) : ""}
+    ${s.good ? `<p class="note"><strong>Good sign:</strong> ${s.good}</p>` : ""}
+    ${s.warn ? `<p class="note warn"><strong>Stop if:</strong> ${s.warn}</p>` : ""}
+    ${sizeNote(s)}
+    <details><summary>Stuck on this step?</summary><p>${s.stuck}</p></details>`;
+  if (s.mock) wireMock(el, s);
+  wirePtb(el);
+  wirePid(el, s);
+  return el;
+}
+
+function go(i) {
+  if (busy || i === current || i < 0 || i >= STEPS.length) return;
+  if (i > 0 && !size) return;
+  const dir = i > current ? "next" : "back";
+  const old = stage.querySelector(".card");
+  const fresh = cardFor(i);
+  busy = true;
+  current = i;
+  remember(i);
+  updateChrome();
+
+  fresh.classList.add("enter-" + dir);
+  stage.appendChild(fresh);
+  fresh.getBoundingClientRect();
+  fresh.classList.remove("enter-" + dir);
+
+  if (old) {
+    old.setAttribute("aria-hidden", "true");
+    old.inert = true;
+    old.classList.add("leave-" + dir);
+  }
+  setTimeout(() => {
+    if (old) old.remove();
+    busy = false;
+  }, 520);
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+nextBtn.addEventListener("click", () => go(current === STEPS.length - 1 ? 1 : current + 1));
+document.getElementById("changeSize").addEventListener("click", () => go(0));
+backBtn.addEventListener("click", () => go(current - 1));
+
+document.addEventListener("keydown", e => {
+  if (e.target.closest("summary")) return;
+  if (e.key === "ArrowRight") go(current + 1);
+  if (e.key === "ArrowLeft") go(current - 1);
+});
+
+let startX = null, startY = null;
+stage.addEventListener("touchstart", e => {
+  startX = e.touches[0].clientX;
+  startY = e.touches[0].clientY;
+}, { passive: true });
+stage.addEventListener("touchend", e => {
+  if (startX === null) return;
+  const dx = e.changedTouches[0].clientX - startX;
+  const dy = e.changedTouches[0].clientY - startY;
+  if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) go(current + (dx < 0 ? 1 : -1));
+  startX = null;
+}, { passive: true });
+
+buildPhases();
+current = saved();
+stage.appendChild(cardFor(current));
+updateChrome();
+updateSizebar();
+</script>
+</body>
+</html>
