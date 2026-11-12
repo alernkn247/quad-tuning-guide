@@ -1394,10 +1394,9 @@ function filterMock(s) {
     </div>
   </div>`;
 }
-function wireMock(el, s) {
-  const root = el.querySelector(".bf");
-  if (!root) return;
-  const want = s.filt[size];
+// Shared driver for the step-by-step practice screens: moves the cursor,
+// runs Previous / Show next / Play all, and calls o.render(i, ctx) to draw step i.
+function guidedMock(root, o) {
   const screen = root.querySelector(".bf-screen");
   const cursor = root.querySelector(".bf-cursor");
   const stepEl = root.querySelector(".bf-step");
@@ -1405,10 +1404,67 @@ function wireMock(el, s) {
   const prevB = root.querySelector('[data-act="prev"]');
   const nextB = root.querySelector('[data-act="next"]');
   const playB = root.querySelector('[data-act="play"]');
-  const last = BF_GUIDE.length - 1;
+  const last = o.steps.length - 1;
   const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  let idx = 0, timer = null, play = null;
+  const tgt = f => root.querySelector(`[data-f="${f}"]`);
+  let idx = 0, timers = [], play = null;
 
+  const aim = () => {
+    const n = tgt(o.steps[idx].f);
+    let c = n.querySelector(".bf-thumb") || n.querySelector(".bf-tog") || n.querySelector(".bf-in") || n;
+    let x = c.offsetWidth / 2, y = c.offsetHeight / 2;
+    while (c && c !== screen) { x += c.offsetLeft; y += c.offsetTop; c = c.offsetParent; }
+    cursor.style.transform = `translate(${x}px, ${y}px)`;
+  };
+  // later() delays are skipped when the reader has reduced motion switched on.
+  const ctx = { root, tgt, calm, aim, later: (fn, ms) => timers.push(setTimeout(fn, calm ? 0 : ms)) };
+  const show = (i, scroll) => {
+    timers.forEach(clearTimeout);
+    timers = [];
+    idx = i;
+    o.steps.forEach((g, j) => {
+      const n = tgt(g.f);
+      n.classList.toggle("now", j === i);
+      n.classList.remove("flash");
+    });
+    o.render(i, ctx);
+    stepEl.textContent = `${o.label} ${i + 1} of ${o.steps.length}`;
+    say.innerHTML = o.steps[i].say;
+    prevB.disabled = i === 0;
+    nextB.disabled = i === last;
+    aim();
+    if (!scroll) return;
+    // rowScroll keeps the highlighted row clear of the sticky guide box; otherwise keep the whole screen in view.
+    const n = o.rowScroll ? tgt(o.steps[i].f) : screen;
+    const r = n.getBoundingClientRect();
+    const out = o.rowScroll ? r.top < 220 || r.bottom > window.innerHeight - 24 : r.top < 0 || r.bottom > window.innerHeight;
+    if (out) n.scrollIntoView({ block: o.rowScroll ? "center" : "nearest", behavior: calm ? "auto" : "smooth" });
+  };
+  const stop = () => { clearInterval(play); play = null; playB.textContent = "Play all"; };
+  const start = scroll => {
+    if (idx === last) show(0, scroll);
+    playB.textContent = "Pause";
+    play = setInterval(() => {
+      if (!root.isConnected || idx === last) return stop();
+      show(idx + 1, scroll);
+    }, o.interval);
+  };
+
+  prevB.addEventListener("click", () => { stop(); show(idx - 1, true); });
+  nextB.addEventListener("click", () => { stop(); show(idx + 1, true); });
+  playB.addEventListener("click", () => { if (play) return stop(); start(true); });
+  window.addEventListener("resize", () => { if (root.isConnected) aim(); });
+  show(0, false);
+  requestAnimationFrame(() => {
+    if (o.ready) o.ready();
+    aim();
+    if (o.autoplay && !calm) start(false);
+  });
+}
+function wireMock(el, s) {
+  const root = el.querySelector(".bf");
+  if (!root) return;
+  const want = s.filt[size];
   const tgt = f => root.querySelector(`[data-f="${f}"]`);
   const setVal = (f, v) => {
     const n = tgt(f);
@@ -1423,54 +1479,20 @@ function wireMock(el, s) {
       root.querySelectorAll(`[data-scale="${f}"]`).forEach(x => { x.textContent = Math.round(x.dataset.base * parseFloat(v)); });
     }
   };
-  const aim = () => {
-    const n = tgt(BF_GUIDE[idx].f);
-    let c = n.querySelector(".bf-thumb") || n.querySelector(".bf-tog") || n.querySelector(".bf-in") || n;
-    let x = c.offsetWidth / 2, y = c.offsetHeight / 2;
-    while (c && c !== screen) { x += c.offsetLeft; y += c.offsetTop; c = c.offsetParent; }
-    cursor.style.transform = `translate(${x}px, ${y}px)`;
-  };
-  const show = (i, scroll) => {
-    clearTimeout(timer);
-    idx = i;
-    BF_GUIDE.forEach((g, j) => {
-      const n = tgt(g.f);
-      n.classList.toggle("now", j === i);
-      n.classList.toggle("done", j < i);
-      n.classList.remove("flash");
-      if (g.f !== "save") setVal(g.f, j < i ? want[g.f] : BF_DEFAULT[g.f]);
-    });
-    const g = BF_GUIDE[i];
-    const n = tgt(g.f);
-    stepEl.textContent = `Change ${i + 1} of ${BF_GUIDE.length}`;
-    say.innerHTML = g.say(want[g.f]);
-    if (g.f !== "save" && want[g.f] !== BF_DEFAULT[g.f]) {
-      timer = setTimeout(() => { setVal(g.f, want[g.f]); n.classList.add("flash"); aim(); }, calm ? 0 : 900);
+  guidedMock(root, {
+    label: "Change",
+    interval: 3200,
+    rowScroll: true,
+    steps: BF_GUIDE.map(g => ({ f: g.f, say: g.say(want[g.f]) })),
+    render(i, { later, aim }) {
+      BF_GUIDE.forEach((g, j) => {
+        tgt(g.f).classList.toggle("done", j < i);
+        if (g.f !== "save") setVal(g.f, j < i ? want[g.f] : BF_DEFAULT[g.f]);
+      });
+      const f = BF_GUIDE[i].f;
+      if (f !== "save" && want[f] !== BF_DEFAULT[f]) later(() => { setVal(f, want[f]); tgt(f).classList.add("flash"); aim(); }, 900);
     }
-    prevB.disabled = i === 0;
-    nextB.disabled = i === last;
-    aim();
-    if (scroll) {
-      const r = n.getBoundingClientRect();
-      if (r.top < 220 || r.bottom > window.innerHeight - 24) n.scrollIntoView({ block: "center", behavior: calm ? "auto" : "smooth" });
-    }
-  };
-  const stop = () => { clearInterval(play); play = null; playB.textContent = "Play all"; };
-
-  prevB.addEventListener("click", () => { stop(); show(idx - 1, true); });
-  nextB.addEventListener("click", () => { stop(); show(idx + 1, true); });
-  playB.addEventListener("click", () => {
-    if (play) return stop();
-    if (idx === last) show(0, true);
-    playB.textContent = "Pause";
-    play = setInterval(() => {
-      if (!root.isConnected || idx === last) return stop();
-      show(idx + 1, true);
-    }, 3200);
   });
-  window.addEventListener("resize", () => { if (root.isConnected) aim(); });
-  show(0, false);
-  requestAnimationFrame(aim);
 }
 
 const PRE_LIST = [
@@ -1524,13 +1546,6 @@ function presetMock() {
 function wirePreset(el) {
   const root = el.querySelector(".prem:not(.relm)");
   if (!root) return;
-  const screen = root.querySelector(".bf-screen");
-  const cursor = root.querySelector(".bf-cursor");
-  const stepEl = root.querySelector(".bf-step");
-  const say = root.querySelector(".bf-say");
-  const prevB = root.querySelector('[data-act="prev"]');
-  const nextB = root.querySelector('[data-act="next"]');
-  const playB = root.querySelector('[data-act="play"]');
   const tabs = [...root.querySelectorAll(".bf-tabs span")];
   const body = root.querySelector(".bfp-body");
   const list = root.querySelector(".bfp-list");
@@ -1539,9 +1554,6 @@ function wirePreset(el) {
   const ph = root.querySelector(".bfp-ph");
   const dim = root.querySelector(".bfp-dim");
   const tgt = f => root.querySelector(`[data-f="${f}"]`);
-  const last = PRE_GUIDE.length - 1;
-  const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  let idx = 0, timers = [], play = null;
 
   const setTab = on => {
     tabs.forEach(t => t.classList.toggle("on", (t.dataset.f === "tab") === on));
@@ -1556,64 +1568,28 @@ function wirePreset(el) {
     tgt("card").classList.toggle("picked", on);
     tgt("save").classList.toggle("off", !on);
   };
-  const aim = () => {
-    let c = tgt(PRE_GUIDE[idx].f);
-    c = c.querySelector(".bf-in") || c;
-    let x = c.offsetWidth / 2, y = c.offsetHeight / 2;
-    while (c && c !== screen) { x += c.offsetLeft; y += c.offsetTop; c = c.offsetParent; }
-    cursor.style.transform = `translate(${x}px, ${y}px)`;
-  };
-  const later = (fn, ms) => timers.push(setTimeout(fn, ms));
-  const show = (i, scroll) => {
-    timers.forEach(clearTimeout);
-    timers = [];
-    idx = i;
-    PRE_GUIDE.forEach((g, j) => {
-      const n = tgt(g.f);
-      n.classList.toggle("now", j === i);
-      n.classList.remove("flash");
-    });
-    setTab(i > 0);
-    setQuery(i > 1 ? "elrs" : "");
-    dim.classList.toggle("open", i === 3);
-    setPicked(i > 3);
-    stepEl.textContent = `Step ${i + 1} of ${PRE_GUIDE.length}`;
-    say.innerHTML = PRE_GUIDE[i].say;
-    prevB.disabled = i === 0;
-    nextB.disabled = i === last;
-    aim();
-    if (i === 0) later(() => setTab(true), calm ? 0 : 900);
-    if (i === 1) "elrs".split("").forEach((_, k) => later(() => setQuery("elrs".slice(0, k + 1)), calm ? 0 : 800 + k * 240));
-    if (i === 2 && !calm) later(() => dim.classList.add("open"), 1200);
-    if (i === 3 && !calm) later(() => {
-      dim.classList.remove("open");
-      setPicked(true);
-      tgt("card").classList.add("flash");
-    }, 1400);
-    if (scroll) {
-      const r = screen.getBoundingClientRect();
-      if (r.top < 0 || r.bottom > window.innerHeight) screen.scrollIntoView({ block: "nearest", behavior: calm ? "auto" : "smooth" });
+  guidedMock(root, {
+    label: "Step",
+    interval: 3000,
+    autoplay: true,
+    steps: PRE_GUIDE,
+    // Hold the list height so the page doesn't jump when the search hides presets.
+    ready() { list.style.minHeight = list.offsetHeight + "px"; },
+    render(i, { later, calm }) {
+      setTab(i > 0);
+      setQuery(i > 1 ? "elrs" : "");
+      dim.classList.toggle("open", i === 3);
+      setPicked(i > 3);
+      if (i === 0) later(() => setTab(true), 900);
+      if (i === 1) "elrs".split("").forEach((_, k) => later(() => setQuery("elrs".slice(0, k + 1)), 800 + k * 240));
+      // With reduced motion the window stays put: step 3 shows it closed, step 4 shows it open.
+      if (i === 2 && !calm) later(() => dim.classList.add("open"), 1200);
+      if (i === 3 && !calm) later(() => {
+        dim.classList.remove("open");
+        setPicked(true);
+        tgt("card").classList.add("flash");
+      }, 1400);
     }
-  };
-  const stop = () => { clearInterval(play); play = null; playB.textContent = "Play all"; };
-  const start = scroll => {
-    if (idx === last) show(0, scroll);
-    playB.textContent = "Pause";
-    play = setInterval(() => {
-      if (!root.isConnected || idx === last) return stop();
-      show(idx + 1, scroll);
-    }, 3000);
-  };
-
-  prevB.addEventListener("click", () => { stop(); show(idx - 1, true); });
-  nextB.addEventListener("click", () => { stop(); show(idx + 1, true); });
-  playB.addEventListener("click", () => { if (play) return stop(); start(true); });
-  window.addEventListener("resize", () => { if (root.isConnected) aim(); });
-  show(0, false);
-  requestAnimationFrame(() => {
-    list.style.minHeight = list.offsetHeight + "px";
-    aim();
-    if (!calm) start(false);
   });
 }
 
@@ -1664,7 +1640,7 @@ function wireRelax(el) {
   if (!root) return;
   const z = SIZES.find(x => x.key === size);
   const want = size === "big" ? "10" : "15";
-  const guide = [
+  const steps = [
     { f: "nav", say: "<strong>PID Tuning tab.</strong> Click PID Tuning in the menu down the left side of Betaflight. It opens on PID Profile Settings." },
     { f: "relax", say: "<strong>I Term Relax.</strong> Find it in the PID Controller Settings box. Leave it switched <b>on</b>." },
     { f: "cut", say: size === "big"
@@ -1674,71 +1650,27 @@ function wireRelax(el) {
       ? "<strong>Save.</strong> Nothing changed, so there’s nothing to save. If you did type a new number, click Save in the bottom right corner."
       : "<strong>Save.</strong> Click Save in the bottom right corner. Your change is lost if you skip this." }
   ];
-  const screen = root.querySelector(".bf-screen");
-  const cursor = root.querySelector(".bf-cursor");
-  const stepEl = root.querySelector(".bf-step");
-  const say = root.querySelector(".bf-say");
-  const prevB = root.querySelector('[data-act="prev"]');
-  const nextB = root.querySelector('[data-act="next"]');
-  const playB = root.querySelector('[data-act="play"]');
   const tabs = [...root.querySelectorAll(".bf-tabs:not(.sub) span")];
   const body = root.querySelector(".bfp-body");
   const tgt = f => root.querySelector(`[data-f="${f}"]`);
   const cutIn = tgt("cut").querySelector(".bf-in");
-  const last = guide.length - 1;
-  const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  let idx = 0, timer = null, play = null;
-
   const setTab = on => {
     tabs.forEach(t => t.classList.toggle("on", (t.dataset.f === "nav") === on));
     body.classList.toggle("dim", !on);
   };
-  const aim = () => {
-    let c = tgt(guide[idx].f);
-    c = c.querySelector(".bf-tog") || c.querySelector(".bf-in") || c;
-    let x = c.offsetWidth / 2, y = c.offsetHeight / 2;
-    while (c && c !== screen) { x += c.offsetLeft; y += c.offsetTop; c = c.offsetParent; }
-    cursor.style.transform = `translate(${x}px, ${y}px)`;
-  };
-  const show = (i, scroll) => {
-    clearTimeout(timer);
-    idx = i;
-    guide.forEach((g, j) => {
-      const n = tgt(g.f);
-      n.classList.toggle("now", j === i);
-      n.classList.toggle("done", j < i && j > 0);
-      n.classList.remove("flash");
-    });
-    setTab(i > 0);
-    cutIn.textContent = i > 2 ? want : "15";
-    stepEl.textContent = `Step ${i + 1} of ${guide.length}`;
-    say.innerHTML = guide[i].say;
-    prevB.disabled = i === 0;
-    nextB.disabled = i === last;
-    aim();
-    if (i === 0) timer = setTimeout(() => setTab(true), calm ? 0 : 900);
-    if (i === 2 && want !== "15") timer = setTimeout(() => { cutIn.textContent = want; tgt("cut").classList.add("flash"); }, calm ? 0 : 900);
-    if (scroll) {
-      const r = screen.getBoundingClientRect();
-      if (r.top < 0 || r.bottom > window.innerHeight) screen.scrollIntoView({ block: "nearest", behavior: calm ? "auto" : "smooth" });
+  guidedMock(root, {
+    label: "Step",
+    interval: 3000,
+    autoplay: true,
+    steps,
+    render(i, { later }) {
+      steps.forEach((g, j) => tgt(g.f).classList.toggle("done", j < i && j > 0));
+      setTab(i > 0);
+      cutIn.textContent = i > 2 ? want : "15";
+      if (i === 0) later(() => setTab(true), 900);
+      if (i === 2 && want !== "15") later(() => { cutIn.textContent = want; tgt("cut").classList.add("flash"); }, 900);
     }
-  };
-  const stop = () => { clearInterval(play); play = null; playB.textContent = "Play all"; };
-  const start = scroll => {
-    if (idx === last) show(0, scroll);
-    playB.textContent = "Pause";
-    play = setInterval(() => {
-      if (!root.isConnected || idx === last) return stop();
-      show(idx + 1, scroll);
-    }, 3000);
-  };
-
-  prevB.addEventListener("click", () => { stop(); show(idx - 1, true); });
-  nextB.addEventListener("click", () => { stop(); show(idx + 1, true); });
-  playB.addEventListener("click", () => { if (play) return stop(); start(true); });
-  window.addEventListener("resize", () => { if (root.isConnected) aim(); });
-  show(0, false);
-  requestAnimationFrame(() => { aim(); if (!calm) start(false); });
+  });
 }
 
 const SPX = f => 44 + f / 1000 * 260;
