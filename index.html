@@ -635,6 +635,69 @@ body.wide .wrap { max-width: 62rem; }
   .bf-thumb, .bf-cursor { transition: none; }
   .tgt.now .bf-in, .tgt.now .bf-thumb, .bf-btn.now, .tgt.flash .bf-in { animation: none; }
 }
+.prem .bf-guide { position: static; }
+.prem .bf-say { min-height: 3.5em; }
+.bf-tabs .tgt.now { opacity: 1; outline: 2px solid var(--bf-acc); outline-offset: -2px; }
+.bfp-body { padding: .75rem; transition: opacity .3s ease; }
+.bfp-body.dim { opacity: .3; }
+.bfp-search { padding: .25rem; margin: -.25rem -.25rem .375rem; border-radius: .25rem; }
+.bfp-search .bf-in { display: flex; align-items: center; min-height: 1.875rem; }
+.bfp-ph { opacity: .55; }
+.bfp-caret { display: none; width: 1px; height: 1.1em; margin-left: 1px; background: currentColor; animation: bfpblink 1s steps(1) infinite; }
+.now .bfp-caret { display: block; }
+@keyframes bfpblink { 50% { opacity: 0; } }
+.bfp-list { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; align-content: start; }
+.bfp-card {
+  background: var(--bf-box);
+  border: 1px solid var(--bf-line);
+  border-radius: .25rem;
+  padding: .5rem .625rem;
+}
+.bfp-card[hidden] { display: none; }
+.bfp-card b { display: block; font-weight: 600; }
+.bfp-cat { font-size: .6875rem; letter-spacing: .04em; opacity: .75; }
+.bfp-card.now {
+  background: color-mix(in srgb, var(--bf-acc) 20%, var(--bf-box));
+  outline: 2px solid var(--bf-acc);
+  outline-offset: 1px;
+  animation: bfpulse 1.3s ease-out infinite;
+}
+.bfp-card.picked { border-color: var(--bf-acc); box-shadow: inset 0 0 0 1px var(--bf-acc); }
+.bfp-card.picked .bfp-cat::after { content: " \00b7  PICKED \2713"; color: var(--trace); font-weight: 700; }
+.bfp-card.flash { animation: bfpflash .9s ease-out; }
+@keyframes bfpflash { 0% { background: var(--bf-acc); } }
+.bf-btn.off { opacity: .4; }
+.bfp-dim {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  padding: .75rem;
+  background: rgba(0, 0, 0, .45);
+  border-radius: .4375rem;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .25s ease, visibility .25s;
+}
+.bfp-dim.open { opacity: 1; visibility: visible; }
+.bfp-dlg {
+  width: min(100%, 22rem);
+  background: var(--bf-box);
+  border: 1px solid var(--bf-line);
+  border-radius: .375rem;
+  box-shadow: 0 .5rem 1.5rem rgba(0, 0, 0, .35);
+  transform: scale(.94);
+  transition: transform .25s ease;
+}
+.bfp-dim.open .bfp-dlg { transform: none; }
+.bfp-dlg .bf-title { border-radius: .3125rem .3125rem 0 0; }
+.bfp-dlg p { margin: 0; padding: .625rem; }
+.bfp-dlg .bf-foot { border-radius: 0 0 .3125rem .3125rem; }
+@media (prefers-reduced-motion: reduce) {
+  .bfp-body, .bfp-dim, .bfp-dlg { transition: none; }
+  .bfp-card.now, .bfp-card.flash, .bfp-caret { animation: none; }
+}
 .note strong { font-weight: 600; }
 details {
   margin-top: .25rem;
@@ -780,11 +843,13 @@ const STEPS = [
   {
     phase: 0,
     title: "Apply your radio link preset",
+    preset: true,
     lead: "Betaflight needs to know how fast your radio sends stick data.",
     todo: [
       "Go to the Presets tab.",
       "Search for your radio system, such as ELRS or Crossfire.",
       "Pick the preset that matches your packet rate, for example 250 Hz.",
+      "Click Pick in the window that opens.",
       "Click Save and Reboot."
     ],
     good: "The preset name matches the packet rate shown on your radio.",
@@ -1372,6 +1437,150 @@ function wireMock(el, s) {
   requestAnimationFrame(aim);
 }
 
+const PRE_LIST = [
+  ["Crossfire 50Hz", "crossfire tbs crsf"],
+  ["Crossfire 150Hz", "crossfire tbs crsf"],
+  ["ExpressLRS 150Hz", "elrs"],
+  ["ExpressLRS 250Hz", "elrs"],
+  ["ExpressLRS 500Hz", "elrs"]
+];
+const PRE_PICK = "ExpressLRS 250Hz";
+const PRE_GUIDE = [
+  { f: "tab", say: "<strong>Presets tab.</strong> Click Presets in the menu down the left side of Betaflight." },
+  { f: "search", say: "<strong>Search.</strong> Type <b>elrs</b> in the search box. Only the ExpressLRS presets stay on the list." },
+  { f: "card", say: "<strong>Your packet rate.</strong> Click the preset that matches the rate set on your radio. The practice screen uses <b>250Hz</b> as an example." },
+  { f: "pick", say: "<strong>Pick.</strong> A window opens that describes the preset. Click Pick to choose it." },
+  { f: "save", say: "<strong>Save and Reboot.</strong> Click it in the bottom right corner. The preset isn’t applied until you do." }
+];
+function presetMock() {
+  return `
+  <div class="bf prem">
+    <div class="bf-guide">
+      <p class="bf-step"></p>
+      <p class="bf-say" aria-live="polite"></p>
+      <div class="bf-ctl">
+        <button type="button" class="btn" data-act="prev">Previous</button>
+        <button type="button" class="btn primary" data-act="next">Show next</button>
+        <button type="button" class="btn" data-act="play">Play all</button>
+      </div>
+    </div>
+    <p class="bf-note">This is a practice copy of the Presets screen. Your list will be longer, and nothing here changes your quad.</p>
+    <div class="bf-screen">
+      <div class="bf-tabs"><span class="on">Setup</span><span>Configuration</span><span class="tgt" data-f="tab">Presets</span><span>PID Tuning</span><span>Receiver</span></div>
+      <div class="bfp-body">
+        <div class="bfp-search tgt" data-f="search"><span class="bf-in"><span class="bfp-q"></span><span class="bfp-caret"></span><span class="bfp-ph">Search presets</span></span></div>
+        <div class="bfp-list">
+          ${PRE_LIST.map(([n, k]) => `<div class="bfp-card"${n === PRE_PICK ? ' data-f="card"' : ""} data-k="${(n + " " + k).toLowerCase()}"><b>${n}</b><span class="bfp-cat">RC_LINK</span></div>`).join("")}
+        </div>
+      </div>
+      <div class="bf-foot"><span class="bf-btn off">Cancel</span><span class="bf-btn off" data-f="save">Save and Reboot</span></div>
+      <div class="bfp-dim">
+        <div class="bfp-dlg">
+          <div class="bf-title">${PRE_PICK}</div>
+          <p>Sets RC smoothing and feedforward to suit a 250Hz ExpressLRS link.</p>
+          <div class="bf-foot"><span class="bf-btn off">Close</span><span class="bf-btn" data-f="pick">Pick</span></div>
+        </div>
+      </div>
+      <svg class="bf-cursor" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 2v17l4.6-4.2 3 7 2.8-1.2-3-6.8H18z" fill="#fff" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/></svg>
+    </div>
+  </div>`;
+}
+function wirePreset(el) {
+  const root = el.querySelector(".prem");
+  if (!root) return;
+  const screen = root.querySelector(".bf-screen");
+  const cursor = root.querySelector(".bf-cursor");
+  const stepEl = root.querySelector(".bf-step");
+  const say = root.querySelector(".bf-say");
+  const prevB = root.querySelector('[data-act="prev"]');
+  const nextB = root.querySelector('[data-act="next"]');
+  const playB = root.querySelector('[data-act="play"]');
+  const tabs = [...root.querySelectorAll(".bf-tabs span")];
+  const body = root.querySelector(".bfp-body");
+  const list = root.querySelector(".bfp-list");
+  const cards = [...root.querySelectorAll(".bfp-card")];
+  const qEl = root.querySelector(".bfp-q");
+  const ph = root.querySelector(".bfp-ph");
+  const dim = root.querySelector(".bfp-dim");
+  const tgt = f => root.querySelector(`[data-f="${f}"]`);
+  const last = PRE_GUIDE.length - 1;
+  const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let idx = 0, timers = [], play = null;
+
+  const setTab = on => {
+    tabs.forEach(t => t.classList.toggle("on", (t.dataset.f === "tab") === on));
+    body.classList.toggle("dim", !on);
+  };
+  const setQuery = q => {
+    qEl.textContent = q;
+    ph.hidden = !!q;
+    cards.forEach(c => { c.hidden = !c.dataset.k.includes(q); });
+  };
+  const setPicked = on => {
+    tgt("card").classList.toggle("picked", on);
+    tgt("save").classList.toggle("off", !on);
+  };
+  const aim = () => {
+    let c = tgt(PRE_GUIDE[idx].f);
+    c = c.querySelector(".bf-in") || c;
+    let x = c.offsetWidth / 2, y = c.offsetHeight / 2;
+    while (c && c !== screen) { x += c.offsetLeft; y += c.offsetTop; c = c.offsetParent; }
+    cursor.style.transform = `translate(${x}px, ${y}px)`;
+  };
+  const later = (fn, ms) => timers.push(setTimeout(fn, ms));
+  const show = (i, scroll) => {
+    timers.forEach(clearTimeout);
+    timers = [];
+    idx = i;
+    PRE_GUIDE.forEach((g, j) => {
+      const n = tgt(g.f);
+      n.classList.toggle("now", j === i);
+      n.classList.remove("flash");
+    });
+    setTab(i > 0);
+    setQuery(i > 1 ? "elrs" : "");
+    dim.classList.toggle("open", i === 3);
+    setPicked(i > 3);
+    stepEl.textContent = `Step ${i + 1} of ${PRE_GUIDE.length}`;
+    say.innerHTML = PRE_GUIDE[i].say;
+    prevB.disabled = i === 0;
+    nextB.disabled = i === last;
+    aim();
+    if (i === 0) later(() => setTab(true), calm ? 0 : 900);
+    if (i === 1) "elrs".split("").forEach((_, k) => later(() => setQuery("elrs".slice(0, k + 1)), calm ? 0 : 800 + k * 240));
+    if (i === 2 && !calm) later(() => dim.classList.add("open"), 1200);
+    if (i === 3 && !calm) later(() => {
+      dim.classList.remove("open");
+      setPicked(true);
+      tgt("card").classList.add("flash");
+    }, 1400);
+    if (scroll) {
+      const r = screen.getBoundingClientRect();
+      if (r.top < 0 || r.bottom > window.innerHeight) screen.scrollIntoView({ block: "nearest", behavior: calm ? "auto" : "smooth" });
+    }
+  };
+  const stop = () => { clearInterval(play); play = null; playB.textContent = "Play all"; };
+  const start = scroll => {
+    if (idx === last) show(0, scroll);
+    playB.textContent = "Pause";
+    play = setInterval(() => {
+      if (!root.isConnected || idx === last) return stop();
+      show(idx + 1, scroll);
+    }, 3000);
+  };
+
+  prevB.addEventListener("click", () => { stop(); show(idx - 1, true); });
+  nextB.addEventListener("click", () => { stop(); show(idx + 1, true); });
+  playB.addEventListener("click", () => { if (play) return stop(); start(true); });
+  window.addEventListener("resize", () => { if (root.isConnected) aim(); });
+  show(0, false);
+  requestAnimationFrame(() => {
+    list.style.minHeight = list.offsetHeight + "px";
+    aim();
+    if (!calm) start(false);
+  });
+}
+
 const SPX = f => 44 + f / 1000 * 260;
 const SPY = db => 12 + Math.min(60, Math.max(0, -db)) / 60 * 138;
 function specSVG(o) {
@@ -1819,12 +2028,13 @@ function cardFor(i) {
     <h2>${s.title}</h2>
     <p class="lead">${s.lead}</p>
     <ul class="todo">${s.todo.map(t => `<li>${t}</li>`).join("")}</ul>
-    ${s.mock ? filterMock(s) : ""}${s.ptb ? ptbMock(s.ptb) : ""}${s.pid ? pidMock(s) : ""}
+    ${s.mock ? filterMock(s) : ""}${s.preset ? presetMock() : ""}${s.ptb ? ptbMock(s.ptb) : ""}${s.pid ? pidMock(s) : ""}
     ${s.good ? `<p class="note"><strong>Good sign:</strong> ${s.good}</p>` : ""}
     ${s.warn ? `<p class="note warn"><strong>Stop if:</strong> ${s.warn}</p>` : ""}
     ${sizeNote(s)}
     <details><summary>Stuck on this step?</summary><p>${s.stuck}</p></details>`;
   if (s.mock) wireMock(el, s);
+  if (s.preset) wirePreset(el);
   wirePtb(el);
   wirePid(el, s);
   return el;
