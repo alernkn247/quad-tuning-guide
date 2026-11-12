@@ -707,6 +707,67 @@ body.wide .wrap { max-width: 62rem; }
   .bfp-body, .bfp-dim, .bfp-dlg { transition: none; }
   .bfp-card.now, .bfp-card.flash, .bfp-caret { animation: none; }
 }
+.scn .bf-say { min-height: 3.5em; }
+.scn .bf-cols { grid-template-columns: 1fr; }
+.scn .bf-row { grid-template-columns: 7rem 1fr; }
+.scn-flush { padding: 0; }
+.scn-stack { display: grid; }
+.scn-stack > * { grid-area: 1 / 1; min-width: 0; }
+.out { visibility: hidden; }
+.scn-fill { margin: 0; padding: 1.5rem .625rem; opacity: .6; }
+.bf-foot.mid { border-radius: 0; }
+.bf-term {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  height: 10rem;
+  overflow: hidden;
+  margin-bottom: .625rem;
+  padding: .5rem .625rem;
+  background: #101312;
+  color: #cfe9cf;
+  border: 1px solid var(--bf-line);
+  border-radius: .25rem;
+  font: .75rem/1.45 ui-monospace, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+}
+.bf-toast {
+  margin: .5rem 0 0;
+  padding: .375rem .625rem;
+  border: 1px solid var(--trace);
+  border-radius: .25rem;
+  background: color-mix(in srgb, var(--trace) 18%, var(--bf-box));
+  overflow-wrap: anywhere;
+}
+.bf-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem 1rem;
+  padding: .375rem .75rem;
+  background: var(--bf-tab);
+  color: var(--bf-tabtext);
+  font-size: .75rem;
+  border-radius: 0 0 .4375rem .4375rem;
+}
+.bf-status .tgt { padding: 0 .25rem; border-radius: .1875rem; }
+.bf-status .tgt.now { outline: 2px solid var(--bf-acc); outline-offset: 1px; animation: bfpulse 1.3s ease-out infinite; }
+.bf-status .hot { color: #ff8a70; }
+.bf-meter { height: .75rem; margin: .375rem .625rem; background: var(--bf-line); border-radius: 1rem; overflow: hidden; }
+.bf-meter span { display: block; height: 100%; background: var(--bf-acc); transition: width .8s ease; }
+.bf-used { margin: 0; padding: 0 .625rem .25rem; }
+.bf-cell {
+  display: block;
+  min-height: 1.5rem;
+  padding: .125rem .375rem;
+  border: 1px solid var(--bf-line);
+  border-radius: .1875rem;
+  opacity: .55;
+}
+.bf-pid.tgt.flash .bf-in { animation: bfflash .8s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .bf-status .tgt.now, .bf-pid.tgt.flash .bf-in { animation: none; }
+  .bf-meter span { transition: none; }
+}
 .note strong { font-weight: 600; }
 details {
   margin-top: .25rem;

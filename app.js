@@ -833,7 +833,7 @@ function cardFor(i) {
     <h2>${s.title}</h2>
     <p class="lead">${s.lead}</p>
     <ul class="todo">${s.todo.map(t => `<li>${t}</li>`).join("")}</ul>
-    ${s.mock ? filterMock(s) : ""}${s.preset ? presetMock() : ""}${s.relax ? relaxMock() : ""}${s.ptb ? ptbMock(s.ptb) : ""}${s.pid ? pidMock(s) : ""}
+    ${s.mock ? filterMock(s) : ""}${s.preset ? presetMock() : ""}${s.relax ? relaxMock() : ""}${s.scene ? sceneMock(s) : ""}${s.ptb ? ptbMock(s.ptb) : ""}${s.pid ? pidMock(s) : ""}
     ${s.good ? `<p class="note"><strong>Good sign:</strong> ${s.good}</p>` : ""}
     ${s.warn ? `<p class="note warn"><strong>Stop if:</strong> ${s.warn}</p>` : ""}
     ${sizeNote(s)}
@@ -841,6 +841,7 @@ function cardFor(i) {
   if (s.mock) wireMock(el, s);
   if (s.preset) wirePreset(el);
   if (s.relax) wireRelax(el);
+  if (s.scene) wireScene(el, s);
   wirePtb(el);
   wirePid(el, s);
   return el;

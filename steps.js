@@ -28,6 +28,7 @@ const STEPS = [
   {
     phase: 0,
     title: "Save your current settings",
+    scene: "cli",
     lead: "This is your undo button. If anything goes wrong, you can go straight back.",
     todo: [
       "Open Betaflight and go to the CLI tab.",
@@ -40,6 +41,7 @@ const STEPS = [
   {
     phase: 0,
     title: "Check the CPU load",
+    scene: "cpu",
     lead: "A flight controller that’s too busy can’t filter or tune properly.",
     todo: [
       "Look at the CPU load figure at the bottom of the Betaflight window.",
@@ -66,6 +68,7 @@ const STEPS = [
   {
     phase: 0,
     title: "Turn on bidirectional DShot",
+    scene: "motors",
     lead: "This switches on the RPM filter, which removes motor noise for you. It also records motor speed in your logs.",
     todo: [
       "Go to the Motors tab.",
@@ -86,6 +89,7 @@ const STEPS = [
   {
     phase: 0,
     title: "Set up Blackbox logging",
+    scene: "blackbox",
     lead: "The log records what the quad felt in the air. Every test in this guide is read from it.",
     todo: [
       "Go to the Blackbox tab.",
@@ -258,6 +262,7 @@ const STEPS = [
   {
     phase: 2,
     title: "Make the test flights easy to fly",
+    scene: "rates",
     lead: "The next flights use quick stick wiggles. These settings keep the quad calm while you do them.",
     todo: [
       "On Rateprofile Settings, switch to a spare rate profile so your normal rates stay untouched.",
@@ -457,6 +462,8 @@ const STEPS = [
   {
     phase: 3,
     title: "Save your tune and go fly",
+    scene: "cli",
+    cliTuned: true,
     lead: "You’re done. Put your normal settings back and keep a copy of the tune.",
     todo: [
       "Switch back to your normal rate profile and your usual Angle Limit.",
