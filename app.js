@@ -146,10 +146,10 @@ function guidedMock(root, o) {
     nextB.disabled = i === last;
     aim();
     if (!scroll) return;
-    // rowScroll keeps the highlighted row clear of the sticky guide box; otherwise keep the whole screen in view.
+    // rowScroll follows the highlighted row on screens taller than the window; otherwise keep the whole screen in view.
     const n = o.rowScroll ? tgt(o.steps[i].f) : screen;
     const r = n.getBoundingClientRect();
-    const out = o.rowScroll ? r.top < 220 || r.bottom > window.innerHeight - 24 : r.top < 0 || r.bottom > window.innerHeight;
+    const out = o.rowScroll ? r.top < 24 || r.bottom > window.innerHeight - 24 : r.top < 0 || r.bottom > window.innerHeight;
     if (out) n.scrollIntoView({ block: o.rowScroll ? "center" : "nearest", behavior: calm ? "auto" : "smooth" });
   };
   const stop = () => { clearInterval(play); play = null; playB.textContent = "Play all"; };

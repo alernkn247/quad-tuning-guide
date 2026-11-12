@@ -349,9 +349,6 @@ body.wide .wrap { max-width: 62rem; }
   --bf-tab: #1d1e1e;
 }
 .bf-guide {
-  position: sticky;
-  top: calc(env(safe-area-inset-top, 0px) + .5rem);
-  z-index: 5;
   background: var(--card);
   border: 2px solid var(--signal);
   border-radius: .75rem;
@@ -519,7 +516,6 @@ body.wide .wrap { max-width: 62rem; }
   100% { transform: scale(1); }
 }
 .ptb { margin: 0 0 1rem; }
-.ptb .bf-guide { position: static; }
 .ptb-screen {
   background: #161616;
   color: #e6e6e6;
@@ -586,7 +582,6 @@ body.wide .wrap { max-width: 62rem; }
 @media (prefers-reduced-motion: reduce) {
   .hz.hl, .ptb-btn.hl, .ptb-ttl.hl, .ptb-opts.hl { animation: none; }
 }
-.pidm .bf-guide { position: static; }
 .pidm .ptb-q { margin: 0 0 .5rem; }
 .pidm .ptb-opts { margin-bottom: .5rem; }
 .pidm .bf-say { min-height: 3em; margin: 0; }
@@ -649,7 +644,6 @@ body.wide .wrap { max-width: 62rem; }
   .bf-thumb, .bf-cursor { transition: none; }
   .tgt.now .bf-in, .tgt.now .bf-thumb, .bf-btn.now, .tgt.flash .bf-in { animation: none; }
 }
-.prem .bf-guide { position: static; }
 .prem .bf-say { min-height: 3.5em; }
 .bf-tabs .tgt.now { opacity: 1; outline: 2px solid var(--bf-acc); outline-offset: -2px; }
 .bf-tabs.sub { border-radius: 0; background: var(--bf-bar); color: var(--bf-text); border-bottom: 1px solid var(--bf-line); }
