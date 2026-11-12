@@ -123,8 +123,15 @@ function guidedMock(root, o) {
 
   const aim = () => {
     const n = tgt(o.steps[idx].f);
+    // On narrow screens a tab row scrolls sideways: bring the target tab into view, then allow for the scroll.
+    const row = n.closest(".bf-tabs");
+    if (row) {
+      const left = n.offsetLeft - row.offsetLeft, right = left + n.offsetWidth;
+      if (right > row.scrollLeft + row.clientWidth) row.scrollLeft = right - row.clientWidth + 1;
+      else if (left < row.scrollLeft) row.scrollLeft = left;
+    }
     let c = n.querySelector(".bf-thumb") || n.querySelector(".bf-tog") || n.querySelector(".bf-in") || n;
-    let x = c.offsetWidth / 2, y = c.offsetHeight / 2;
+    let x = c.offsetWidth / 2 - (row ? row.scrollLeft : 0), y = c.offsetHeight / 2;
     while (c && c !== screen) { x += c.offsetLeft; y += c.offsetTop; c = c.offsetParent; }
     cursor.style.transform = `translate(${x}px, ${y}px)`;
   };
