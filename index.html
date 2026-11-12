@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Quad tuning, one step at a time</title>
+<meta name="description" content="A step-by-step guide to tuning a quadcopter in Betaflight.">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#dfe6ea" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#131b21" media="(prefers-color-scheme: dark)">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="Quad tuning">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -26,5 +33,8 @@
 <script src="steps.js"></script>
 <script src="scenes.js"></script>
 <script src="app.js"></script>
+<script>
+if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+</script>
 </body>
 </html>
