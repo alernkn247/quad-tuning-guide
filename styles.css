@@ -847,3 +847,74 @@ figcaption b { color: var(--ink); font-weight: 600; display: block; }
   .card.enter-next, .card.leave-next, .card.enter-back, .card.leave-back { transform: none; }
   .phase-btn .fill { transition: none; }
 }
+
+/* PIDtoolbox practice windows (scenes ptbOpen, ptbSpec, ptbStep) */
+.bf-screen.pw {
+  background: #1b1b1b;
+  color: #e6e6e6;
+  border: 1px solid #444;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: .75rem;
+}
+.pw-bar {
+  display: flex;
+  align-items: center;
+  gap: .3125rem;
+  padding: .375rem .5rem;
+  background: #2a2a2a;
+  border-bottom: 1px solid #444;
+}
+.pw-bar i { width: .5rem; height: .5rem; border-radius: 50%; background: #666; }
+.pw-bar b { margin-left: .375rem; font-weight: 400; color: #bbb; }
+.pw-split { display: grid; grid-template-columns: minmax(0, 1fr) 8.25rem; gap: .5rem; padding: .5rem; align-items: start; }
+.pw-plot { display: block; width: 100%; height: auto; border-radius: .1875rem; }
+.pw-panel { display: grid; gap: .3125rem; border: 1px solid #555; padding: .375rem; min-width: 0; }
+.pw-cap { color: #ccc; font-size: .6875rem; }
+.pw-row3, .pw-row2 { display: grid; gap: .1875rem; }
+.pw-row3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.pw-row2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pw-btn {
+  display: block;
+  padding: .25rem .125rem;
+  border: 1px solid #666;
+  border-radius: .1875rem;
+  background: #222;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pw-row3 .pw-btn { font-size: .625rem; }
+.pw-btn.grn { color: #3ddc6a; }
+.pw-btn.org { color: #ff9a3c; }
+.pw-btn.red { color: #ff4d4d; }
+.pw-btn.blu { color: #4d9dff; }
+.pw-sel { border: 1px solid #666; border-radius: .1875rem; padding: .1875rem .25rem; min-height: 1.5em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pw-sel::after { content: "▾"; float: right; color: #888; }
+.pw-main:not(.loaded) .pw-fname, .pw-main:not(.loaded) .pw-data { visibility: hidden; }
+.pw-trim rect { fill: #9a9a9a; fill-opacity: 0; transition: fill-opacity .4s; }
+.pw-main.trimmed .pw-trim rect { fill-opacity: .45; }
+.pw-ttl { text-align: center; padding: .375rem .5rem 0; color: #ddd; font-weight: 700; }
+.pw-grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .375rem; }
+.pw-grid21 { display: grid; grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr); gap: .375rem; }
+.pw-tool figure { margin: 0; }
+.pw-tool figcaption { text-align: center; font-size: .625rem; color: #ccc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pw-tool svg { display: block; width: 100%; height: auto; }
+.pw-res { visibility: hidden; }
+.pw-tool.ran .pw-res { visibility: visible; }
+.pw-tool.ran .pw-cor, .pw-tool.ran.ycorr .pw-raw { visibility: hidden; }
+.pw-tool.ran.ycorr .pw-cor { visibility: visible; }
+.pw-list { display: grid; background: #111; border: 1px solid #666; min-height: 2.25rem; align-content: start; }
+.pw-list span { padding: .0625rem .25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pw-list span.sel { background: #cfcfcf; color: #111; }
+.pw-radios { display: flex; gap: .5rem; flex-wrap: wrap; }
+.pw-radios span { padding: .0625rem .1875rem; border-radius: .1875rem; }
+.pw-radios span::before { content: ""; display: inline-block; width: .5rem; height: .5rem; margin-right: .25rem; border-radius: 50%; border: 1px solid #ccc; }
+.pw-radios span.on::before { background: #fff; }
+.pw .tgt.now { outline: 2px solid #ffbb00; outline-offset: 1px; background: rgb(255 187 0 / .14); animation: bfpulse 1.3s ease-out infinite; }
+.pw-plotbox { position: relative; min-width: 0; }
+.pw-plotbox.tgt.now { background: none; }
+.pw-trimhit { position: absolute; left: 1.33%; top: 2.2%; width: 8.67%; height: 95.6%; }
+.ptb-bar { color: #bbb; }
+@media (prefers-reduced-motion: reduce) { .pw .tgt.now { animation: none; } .pw-trim rect { transition: none; } }
+@media (max-width: 420px) { .pw-split { grid-template-columns: minmax(0, 1fr) 7rem; gap: .375rem; padding: .375rem; } .bf-screen.pw { font-size: .6875rem; } }

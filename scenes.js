@@ -224,6 +224,183 @@ const SCENES = {
   }
 };
 
+// ---- PIDtoolbox practice screens (steps 10, 11, 19, 22), laid out like the real program ----
+const pwWave = (y, amp, seed, x0 = 4, x1 = 296, n = 64) => {
+  let r = seed, d = "";
+  for (let k = 0; k <= n; k++) {
+    r = (r * 9301 + 49297) % 233280;
+    d += `${k ? "L" : "M"}${(x0 + (x1 - x0) * k / n).toFixed(1)} ${(y + (r / 233280 - .5) * 2 * amp).toFixed(1)}`;
+  }
+  return d;
+};
+const pwSpecPath = (peaks, floor) => {
+  let d = "";
+  for (let x = 0; x <= 136; x += 2) {
+    let v = floor + 34 * Math.exp(-x / 5);
+    peaks.forEach(([c, h, w]) => { v += h * Math.exp(-(((x - c) / w) ** 2)); });
+    d += `${x ? "L" : "M"}${10 + x} ${(78 - Math.min(v, 70)).toFixed(1)}`;
+  }
+  return d;
+};
+const pwStepPath = (z, gain) => {
+  const w = .09, wd = w * Math.sqrt(1 - z * z);
+  let d = "";
+  for (let t = 0; t <= 180; t += 3) {
+    const y = gain * (1 - Math.exp(-z * w * t) * (Math.cos(wd * t) + z / Math.sqrt(1 - z * z) * Math.sin(wd * t)));
+    d += `${t ? "L" : "M"}${16 + t} ${(92 - y * 52).toFixed(1)}`;
+  }
+  return d;
+};
+const PW_COL = ["#ff4d4d", "#ff9a3c", "#ffe14d", "#7ddc5a", "#4dd2ff"];
+// The main log viewer: plots on the left, Control Panel on the right. `hot` is the button the cursor visits.
+const pwMain = (hot, file) => {
+  const rows = ["Roll", "Pitch", "Yaw"].map((n, k) => {
+    const y = 4 + k * 44;
+    return `<rect x="4" y="${y}" width="292" height="40" fill="none" stroke="#444"/>
+      <path d="M4 ${y + 20}H296" stroke="#555" stroke-dasharray="3 3"/>
+      <text class="ptb-t" x="8" y="${y + 11}">${n}</text>
+      <g class="pw-data"><path d="${pwWave(y + 20, 5, 7 + k * 31)}" fill="none" stroke="#e0245e" stroke-width="1.2"/><path d="${pwWave(y + 20, 3, 91 + k * 17)}" fill="none" stroke="#ddd" stroke-width=".8"/></g>`;
+  }).join("");
+  const motors = ["#4dd2ff", "#7ddc5a", "#ffe14d", "#ff9a3c"].map((c, k) => `<path d="${pwWave(160, 2.5, 13 + k * 53)}" fill="none" stroke="${c}" stroke-width=".9"/>`).join("");
+  const btn = (name, cls, f) => `<span class="pw-btn ${cls}${hot === f ? " tgt" : ""}"${hot === f ? ` data-f="tool"` : ""}>${name}</span>`;
+  return `
+    <div class="pw-split pw-main${hot === "open" ? "" : " loaded"}">
+      <div class="pw-plotbox${hot === "open" ? " tgt" : ""}"${hot === "open" ? ' data-f="plots"' : ""}><svg class="pw-plot" viewBox="0 0 300 180" role="img" aria-label="Log viewer with roll, pitch, yaw and motor plots">
+        ${rows}
+        <rect x="4" y="136" width="292" height="40" fill="none" stroke="#444"/>
+        <text class="ptb-t" x="8" y="147">Throttle | Motor</text>
+        <g class="pw-data">${motors}</g>
+        <g class="pw-trim"><rect x="4" y="4" width="26" height="172"/><rect x="270" y="4" width="26" height="172"/></g>
+      </svg>${hot === "open" ? '<i class="pw-trimhit tgt" data-f="trim"></i>' : ""}</div>
+      <div class="pw-panel">
+        <div class="pw-cap">Control Panel</div>
+        <div class="pw-row3"><span class="pw-btn grn${hot === "open" ? " tgt" : ""}"${hot === "open" ? ' data-f="open"' : ""}>Open</span><span class="pw-btn org">Restore</span><span class="pw-btn red">Reset</span></div>
+        <div class="pw-sel${hot === "open" ? " tgt" : ""}"${hot === "open" ? ' data-f="file"' : ""}><span class="pw-fname">${file}</span></div>
+        ${btn("Spectral Analyzer", "red", "spec")}
+        ${btn("Step Resp Tool", "blu", "step")}
+        <span class="pw-btn org">PID slider tool</span>
+        <span class="pw-btn grn">Filter Sim</span>
+      </div>
+    </div>`;
+};
+const pwList = (items, f, cls) => `<div class="pw-list ${cls} tgt" data-f="${f}">${items.map(t => `<span>${t}</span>`).join("")}</div>`;
+const pwWin = (main, title, tool) => `
+  <div class="pw-bar"><i></i><i></i><i></i><b class="pw-name">PIDtoolbox</b></div>
+  <div class="scn-stack">
+    <div class="scn-a">${main}</div>
+    <div class="scn-b out"><div class="pw-ttl">${title}</div>${tool}</div>
+  </div>`;
+const PW_NOTE = "This is a practice copy of PIDtoolbox, drawn with made-up data. Yours may look a little different depending on the version.";
+
+Object.assign(SCENES, {
+  // Step 10: open the log and trim the ends.
+  ptbOpen() {
+    const file = "01 hover.bbl";
+    return {
+      note: PW_NOTE, cls: "pw", interval: 3600,
+      html: `<div class="pw-bar"><i></i><i></i><i></i><b class="pw-name">PIDtoolbox</b></div>${pwMain("open", file)}`,
+      steps: [
+        { f: "open", say: "<strong>Open.</strong> Click Open at the top of the Control Panel on the right, then choose the log you saved." },
+        { f: "file", say: `<strong>Check the file.</strong> Its name appears in the list under the buttons. Here it’s <b>${file}</b>. If the log holds several flights, pick the long one.` },
+        { f: "plots", say: "<strong>The log viewer.</strong> Roll, pitch and yaw each get a row of wavy gyro lines. The motor lines sit along the bottom." },
+        { f: "trim", say: "<strong>Trim the ends.</strong> The grey bands mark what gets left out. Cut off take-off and landing so only the steady hover is measured." }
+      ],
+      render(i, { $, later }) {
+        const m = $(".pw-main");
+        m.classList.toggle("loaded", i > 0);
+        m.classList.remove("trimmed");
+        if (i === 0) later(() => m.classList.add("loaded"), 1300);
+        if (i === 3) later(() => m.classList.add("trimmed"), 900);
+      }
+    };
+  },
+
+  // Steps 11 and 22: open the Spectral Analyzer, pick the log and the signal, then Run.
+  ptbSpec(s) {
+    const sig = s.sig || "Gyro prefilt", file = s.sig === "Dterm" ? "08 wobble.bbl" : "01 hover.bbl";
+    const dterm = sig === "Dterm";
+    const full = pwSpecPath(dterm ? [[30, 30, 16], [10, 14, 6]] : [[22, 46, 2.4], [44, 28, 2.4], [66, 18, 2.8]], dterm ? 6 : 8);
+    const plot = (t, d) => `<figure><figcaption>${t}</figcaption><svg viewBox="0 0 150 84"><rect x="10" y="4" width="136" height="74" fill="none" stroke="#444"/><path class="pw-res" d="${d}" fill="none" stroke="#e0245e" stroke-width="1.4"/></svg></figure>`;
+    const sub = "M10 14C26 52 60 60 146 66";
+    return {
+      note: PW_NOTE, cls: "pw", interval: 3600,
+      html: pwWin(pwMain("spec", file), "Spectral Analyzer", `
+        <div class="pw-split pw-tool">
+          <div class="pw-grid2">${plot("Full Spectrum, roll", full)}${plot("Sub 100Hz, roll", sub)}${plot("Full Spectrum, pitch", full)}${plot("Sub 100Hz, pitch", sub)}</div>
+          <div class="pw-panel">
+            <div class="pw-cap">select files (max 10)</div>
+            ${pwList([file], "file", "pw-files")}
+            ${pwList(["Gyro", "Gyro prefilt", "Dterm", "Dterm prefilt", "Pterm", "PID error"], "sig", "pw-sigs")}
+            <div class="pw-row2"><span class="pw-btn grn tgt" data-f="run">Run</span><span class="pw-btn org">Reset</span></div>
+            <span class="pw-btn red">Freq x Throttle</span>
+          </div>
+        </div>`),
+      steps: [
+        { f: "tool", say: "<strong>Spectral Analyzer.</strong> Click it in the Control Panel. It’s the button with red text. A new window opens." },
+        { f: "file", say: `<strong>Pick the log.</strong> In the “select files” list at the top right, click <b>${file}</b> so it’s highlighted.` },
+        { f: "sig", say: `<strong>Pick the signal.</strong> In the list below it, click <b>${sig}</b>. ${dterm ? "That’s the D term after filtering, which is what reaches the motors." : "That’s the gyro before any filtering."}` },
+        { f: "run", say: "<strong>Run.</strong> The graphs fill in. The left column is the full range, and that’s the one this guide reads. Use roll and pitch." }
+      ],
+      render(i, { $, later, root }) {
+        const a = $(".scn-a"), b = $(".scn-b"), t = $(".pw-tool"), name = $(".pw-name");
+        const view = on => { a.classList.toggle("out", on); b.classList.toggle("out", !on); name.textContent = on ? "PIDtoolbox – Spectral Analyzer" : "PIDtoolbox"; };
+        const files = root.querySelectorAll(".pw-files span"), sigs = [...root.querySelectorAll(".pw-sigs span")];
+        const pick = (f, g) => { files.forEach(n => n.classList.toggle("sel", f)); sigs.forEach(n => n.classList.toggle("sel", g && n.textContent === sig)); };
+        view(i > 0); pick(i > 1, i > 2); t.classList.remove("ran");
+        if (i === 0) later(() => view(true), 1500);
+        if (i === 1) later(() => pick(true, false), 1000);
+        if (i === 2) later(() => pick(true, true), 1000);
+        if (i === 3) later(() => t.classList.add("ran"), 1000);
+      }
+    };
+  },
+
+  // Step 19: open the Step Response Tool, select the five wobble logs, Run, then Y correction.
+  ptbStep() {
+    const vals = ["0.6", "0.8", "1.0", "1.2", "1.4"];
+    const files = vals.map((v, k) => `0${k + 2} D${v}.bbl`);
+    const zs = [.3, .42, .55, .68, .8], off = [.93, 1.05, .97, 1.04, .95];
+    const curves = g => zs.map((z, k) => `<path d="${pwStepPath(z, g ? off[k] : 1)}" fill="none" stroke="${PW_COL[k]}" stroke-width="1.3"/>`).join("");
+    const dots = PW_COL.map((c, k) => `<circle cx="${16 + k * 14}" cy="${62 - k * 9}" r="2.5" fill="${c}"/>`).join("");
+    return {
+      note: PW_NOTE, cls: "pw", interval: 3800,
+      html: pwWin(pwMain("step", files[0]), "Step Response Tool", `
+        <div class="pw-split pw-tool">
+          <div class="pw-grid21">
+            <figure><figcaption>Step Response Functions, roll</figcaption><svg viewBox="0 0 200 100"><rect x="16" y="6" width="180" height="86" fill="none" stroke="#444"/><path d="M16 40H196" stroke="#e0245e" stroke-dasharray="4 3"/>
+              <text class="ptb-t" x="12" y="43" text-anchor="end">1</text><text class="ptb-t" x="12" y="94" text-anchor="end">0</text>
+              <g class="pw-res pw-raw">${curves(true)}</g><g class="pw-res pw-cor">${curves(false)}</g></svg></figure>
+            <figure><figcaption>SR Latency (ms)</figcaption><svg viewBox="0 0 84 100"><rect x="6" y="6" width="74" height="86" fill="none" stroke="#444"/><g class="pw-res">${dots}</g></svg></figure>
+          </div>
+          <div class="pw-panel">
+            <div class="pw-cap">select files (max 10)</div>
+            ${pwList(files, "file", "pw-files")}
+            <div class="pw-row2"><span class="pw-btn grn tgt" data-f="run">Run</span><span class="pw-btn org">Reset</span></div>
+            <div class="pw-radios"><span>Raw</span><span class="tgt" data-f="ycor">Y corr</span></div>
+          </div>
+        </div>`),
+      steps: [
+        { f: "tool", say: "<strong>Step Resp Tool.</strong> With your five wobble logs open, click it in the Control Panel. It’s the button with blue text." },
+        { f: "file", say: "<strong>Pick the logs.</strong> In the “select files” list, select all five wobble logs so they’re highlighted." },
+        { f: "run", say: "<strong>Run.</strong> One curve appears for each flight, in a different colour. The small graph on the right shows how quickly each one responded." },
+        { f: "ycor", say: "<strong>Y corr.</strong> Switch it on to line every curve up on the dashed target line. That makes the bumps easier to compare." }
+      ],
+      render(i, { $, later, root }) {
+        const a = $(".scn-a"), b = $(".scn-b"), t = $(".pw-tool"), name = $(".pw-name"), y = $('[data-f="ycor"]');
+        const view = on => { a.classList.toggle("out", on); b.classList.toggle("out", !on); name.textContent = on ? "PIDtoolbox – Step Response Tool" : "PIDtoolbox"; };
+        const list = root.querySelectorAll(".pw-files span");
+        const pick = on => list.forEach(n => n.classList.toggle("sel", on));
+        const cor = on => { t.classList.toggle("ycorr", on); y.classList.toggle("on", on); };
+        view(i > 0); pick(i > 1); t.classList.toggle("ran", i > 2); cor(false);
+        if (i === 0) later(() => view(true), 1500);
+        if (i === 1) list.forEach((n, k) => later(() => n.classList.add("sel"), 800 + k * 220));
+        if (i === 2) later(() => t.classList.add("ran"), 1000);
+        if (i === 3) later(() => cor(true), 1000);
+      }
+    };
+  }
+});
+
 function sceneMock(s) {
   const sc = SCENES[s.scene](s);
   return `
@@ -238,7 +415,7 @@ function sceneMock(s) {
       </div>
     </div>
     <p class="bf-note">${sc.note}</p>
-    <div class="bf-screen">
+    <div class="bf-screen${sc.cls ? " " + sc.cls : ""}">
       ${sc.html}
       <svg class="bf-cursor" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 2v17l4.6-4.2 3 7 2.8-1.2-3-6.8H18z" fill="#fff" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/></svg>
     </div>
@@ -253,7 +430,7 @@ function wireScene(el, s) {
   // nav(true) makes the scene's own tab the active one; the screen body is greyed out until then.
   const nav = (on, dim = true) => {
     tabs.forEach((t, k) => t.classList.toggle("on", on ? t.dataset.f === "nav" : k === 0));
-    body.classList.toggle("dim", dim && !on);
+    if (body) body.classList.toggle("dim", dim && !on);
   };
   guidedMock(root, {
     label: "Step",

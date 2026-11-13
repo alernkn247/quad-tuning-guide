@@ -472,7 +472,6 @@ const PTB = {
   spec: {
     tool: "spec",
     tour: [
-      { h: "btn", t: "<strong>Open the tool.</strong> Click Spectral Analyzer, choose “Gyro prefilt”, then Run. That shows the gyro before any filtering." },
       { h: "move", t: "<strong>The hump on the far left</strong> is the quad actually moving. It isn’t noise, so ignore it." },
       { h: "motor", t: "<strong>The tall peaks are your motors.</strong> The first is the motor speed. The smaller ones to the right are its echoes. They’re normal, and the RPM filter removes them." },
       { h: "floor", t: "<strong>The floor</strong> is the line the peaks stand on. This is the part you’re judging. Lower is quieter." },
@@ -504,7 +503,6 @@ const PTB = {
   dterm: {
     tool: "spec",
     tour: [
-      { h: "btn", t: "<strong>Open the tool.</strong> Click Spectral Analyzer, choose “Dterm”, then Run." },
       { h: "limit", t: "<strong>The line to watch is −10 dB.</strong> During wobble tests, the D term noise should stay under it." },
       { h: "opts", t: "<strong>Now compare.</strong> Pick the example below that looks most like yours." }
     ],
@@ -521,7 +519,6 @@ const PTB = {
   sweep: {
     tool: "step",
     tour: [
-      { h: "btn", t: "<strong>Open the tool.</strong> Click Step Resp Tool, tick your five wobble logs, then Run." },
       { h: "target", t: "<strong>The dashed line at 1</strong> is where the quad should end up after you move the stick." },
       { h: "legend", t: "<strong>Each colour is one flight.</strong> PIDtoolbox lists the PID numbers for each, so you can tell which Damping value is which." },
       { h: "peak", t: "<strong>Look at the bump.</strong> The lowest Damping makes the tallest bump: too little brake, so the quad shoots past. Each step up shrinks it." },
@@ -558,7 +555,7 @@ function ptbMock(kind) {
     </div>
     <p class="bf-note">This is a practice copy of PIDtoolbox, drawn with made-up data.</p>
     <div class="ptb-screen">
-      <div class="ptb-bar"><span class="ptb-btn">Open file</span><span class="ptb-btn"${C.tool === "spec" ? ' data-h="btn"' : ""}>Spectral Analyzer</span><span class="ptb-btn"${C.tool === "step" ? ' data-h="btn"' : ""}>Step Resp Tool</span><span class="ptb-btn" data-h="btn">Run</span></div>
+      <div class="ptb-bar">PIDtoolbox – ${C.tool === "spec" ? "Spectral Analyzer" : "Step Response Tool"}</div>
       <div class="ptb-plots"></div>
     </div>
     ${C.opts ? `<p class="ptb-q">Which one looks most like yours?</p>
@@ -839,6 +836,7 @@ function cardFor(i) {
     <p class="count"><b>${i}</b><span>of ${STEPS.length - 1}, ${PHASES[s.phase].toLowerCase()}</span></p>
     <h2>${s.title}</h2>
     <p class="lead">${s.lead}</p>
+    ${s.caveat ? `<p class="note warn"><strong>Not confirmed:</strong> ${s.caveat}</p>` : ""}
     <ul class="todo">${s.todo.map(t => `<li>${t}</li>`).join("")}</ul>
     ${s.mock ? filterMock(s) : ""}${s.preset ? presetMock() : ""}${s.relax ? relaxMock() : ""}${s.scene ? sceneMock(s) : ""}${s.ptb ? ptbMock(s.ptb) : ""}${s.pid ? pidMock(s) : ""}
     ${s.good ? `<p class="note"><strong>Good sign:</strong> ${s.good}</p>` : ""}

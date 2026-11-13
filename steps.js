@@ -55,6 +55,7 @@ const STEPS = [
     title: "Apply your radio link preset",
     preset: true,
     lead: "Betaflight needs to know how fast your radio sends stick data.",
+    caveat: "On Betaflight 2026.6 or newer you may not need this step. We’ve been told it works out the packet rate by itself, but we haven’t checked that against the release notes. If the Presets tab still lists a radio link preset for your version, applying it does no harm.",
     todo: [
       "Go to the Presets tab.",
       "Search for your radio system, such as ELRS or Crossfire.",
@@ -114,7 +115,7 @@ const STEPS = [
       "Download it from the PIDtoolbox author’s Patreon page. It’s a paid download that costs a few dollars.",
       "Install it and open it once to check it runs."
     ],
-    good: "PIDtoolbox opens and shows an Open file button.",
+    good: "PIDtoolbox opens and shows a Control Panel with an Open button.",
     stuck: "The paid version adds a motor-line overlay that makes the hover test easier to read, but you can follow this guide without it."
   },
   {
@@ -151,11 +152,12 @@ const STEPS = [
   {
     phase: 1,
     title: "Open the log in PIDtoolbox",
+    scene: "ptbOpen",
     lead: "Get the log off the quad and onto your computer.",
     todo: [
       "Plug the quad in and open the Blackbox tab.",
       "Click Save Flash to File. Give it a short, numbered name such as “01 hover”.",
-      "In PIDtoolbox, click Open file and choose it.",
+      "In PIDtoolbox, click Open and choose it.",
       "If it lists several logs, pick the long one."
     ],
     good: "You see wavy gyro and motor lines in the log viewer.",
@@ -165,9 +167,12 @@ const STEPS = [
     phase: 1,
     title: "Read the noise graph",
     lead: "This graph shows how much the quad is shaking, and how fast. The practice screen below teaches you to read it.",
+    scene: "ptbSpec",
+    sig: "Gyro prefilt",
     ptb: "spec",
     todo: [
-      "Press “Show next” to learn what each part means.",
+      "Follow the first practice screen to open the Spectral Analyzer.",
+      "On the second one, press “Show next” to learn what each part of the graph means.",
       "Then pick the example that looks most like yours."
     ],
     good: "Tall peaks standing on a low, quiet floor.",
@@ -318,10 +323,12 @@ const STEPS = [
     phase: 2,
     title: "Compare the five curves",
     lead: "Now you find the right amount of brake. The practice screen below shows what to look for.",
+    scene: "ptbStep",
     ptb: "sweep",
     todo: [
       "Save the log file and open it in PIDtoolbox. Tick the five long logs.",
-      "Press “Show next” to learn what the curves mean.",
+      "Follow the first practice screen to open the Step Resp Tool.",
+      "On the second one, press “Show next” to learn what the curves mean.",
       "Then pick the example that looks most like yours."
     ],
     good: "You’ve chosen one Damping value: the lowest one where the bump is nearly gone.",
@@ -383,10 +390,13 @@ const STEPS = [
     phase: 3,
     title: "Check the D noise",
     lead: "A stronger tune also makes noise stronger. This check tells you whether the motors are being asked to do too much.",
+    scene: "ptbSpec",
+    sig: "Dterm",
     ptb: "dterm",
     todo: [
       "Open your latest wobble log in PIDtoolbox.",
-      "Use the practice screen below to see what to look for."
+      "Follow the first practice screen to open the Spectral Analyzer on the D term.",
+      "Use the second one to see what to look for."
     ],
     good: "The D term line stays under −10 dB.",
     stuck: "PIDtoolbox can also show filter delay, from its Delay menu. More filtering means more delay, so only add as much as you need.",
